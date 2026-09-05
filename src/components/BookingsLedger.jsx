@@ -157,21 +157,21 @@ export default function BookingsLedger() {
     <div>
       {/* Stats Summary Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Cash in Hand</div>
-          <div className="text-xl sm:text-2xl font-bold text-amberGold-hover mt-1">₹{netBalance.toLocaleString()}</div>
+        <div className="bg-white dark:bg-[#0f1d17] p-4 rounded-xl border border-slate-200 dark:border-emerald-900/40 shadow-sm dark:shadow-lg transition-colors">
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cash in Hand</div>
+          <div className="text-xl sm:text-2xl font-bold text-amberGold-hover dark:text-amberGold mt-1">₹{netBalance.toLocaleString()}</div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total Income</div>
-          <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-1">₹{totalIncome.toLocaleString()}</div>
+        <div className="bg-white dark:bg-[#0f1d17] p-4 rounded-xl border border-slate-200 dark:border-emerald-900/40 shadow-sm dark:shadow-lg transition-colors">
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Income</div>
+          <div className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">₹{totalIncome.toLocaleString()}</div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Total Expenses</div>
-          <div className="text-xl sm:text-2xl font-bold text-rose-600 mt-1">₹{totalExpense.toLocaleString()}</div>
+        <div className="bg-white dark:bg-[#0f1d17] p-4 rounded-xl border border-slate-200 dark:border-emerald-900/40 shadow-sm dark:shadow-lg transition-colors">
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Expenses</div>
+          <div className="text-xl sm:text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">₹{totalExpense.toLocaleString()}</div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">Active Guests</div>
-          <div className="text-xl sm:text-2xl font-bold text-forest-800 mt-1">{activeGuestsCount}</div>
+        <div className="bg-white dark:bg-[#0f1d17] p-4 rounded-xl border border-slate-200 dark:border-emerald-900/40 shadow-sm dark:shadow-lg transition-colors">
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Active Guests</div>
+          <div className="text-xl sm:text-2xl font-bold text-forest-800 dark:text-sky-300 mt-1">{activeGuestsCount}</div>
         </div>
       </div>
 
@@ -190,35 +190,37 @@ export default function BookingsLedger() {
             });
             setShowGuestModal(true);
           }}
-          className="bg-forest-800 hover:bg-forest-700 text-white font-semibold text-sm px-4 py-2.5 rounded-lg transition-colors shadow-sm inline-flex items-center gap-1.5"
+          className="bg-forest-800 hover:bg-forest-700 dark:bg-gradient-to-r dark:from-emerald-600 dark:to-forest-700 dark:hover:from-emerald-500 dark:hover:to-forest-600 text-white font-bold text-sm px-4 py-2.5 rounded-lg transition-all shadow-sm dark:shadow-md inline-flex items-center gap-1.5 border border-transparent dark:border-emerald-500/30 active:scale-[0.99] cursor-pointer"
         >
-          <Plus className="w-4 h-4" aria-hidden="true" />
+          <Plus className="w-4 h-4 text-amber-300 dark:text-amberGold" aria-hidden="true" />
           <span>New Guest Booking</span>
         </button>
         <button
           onClick={() => setShowTxModal(true)}
-          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm px-4 py-2.5 rounded-lg border border-slate-300 transition-colors inline-flex items-center gap-1.5"
+          className="bg-slate-100 hover:bg-slate-200 dark:bg-[#13231c] dark:hover:bg-[#1a3528] text-slate-800 dark:text-slate-200 font-semibold text-sm px-4 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900/50 transition-colors inline-flex items-center gap-1.5 shadow-sm active:scale-[0.99] cursor-pointer"
         >
-          <Banknote className="w-4 h-4" aria-hidden="true" />
+          <Banknote className="w-4 h-4 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
           <span>Log Income / Expense</span>
         </button>
         <button
           onClick={handleExportCSV}
-          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm px-4 py-2.5 rounded-lg border border-slate-300 transition-colors ml-auto inline-flex items-center gap-1.5"
+          className="bg-slate-100 hover:bg-slate-200 dark:bg-[#13231c] dark:hover:bg-[#1a3528] text-slate-800 dark:text-slate-200 font-semibold text-sm px-4 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900/50 transition-colors ml-auto inline-flex items-center gap-1.5 shadow-sm active:scale-[0.99] cursor-pointer"
         >
-          <Download className="w-4 h-4" aria-hidden="true" />
+          <Download className="w-4 h-4 text-amberGold" aria-hidden="true" />
           <span>Export CSV Ledger</span>
         </button>
       </div>
 
       {/* Bookings Table Card */}
-      <div className="bg-white rounded-2xl p-5 mb-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex items-center justify-between gap-2 mb-4">
-          <span className="text-lg font-bold text-forest-800 flex items-center gap-2">
-            <BedDouble className="w-5 h-5 text-forest-800" aria-hidden="true" />
+      <div className="bg-white dark:bg-[#0f1d17] rounded-2xl p-5 mb-5 border border-slate-200 dark:border-emerald-900/40 shadow-sm dark:shadow-xl transition-colors">
+        <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+          <span className="text-lg font-bold text-forest-800 dark:text-white flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-forest-50 dark:bg-emerald-950/80 border border-forest-200 dark:border-emerald-700/40 flex items-center justify-center text-forest-800 dark:text-emerald-400">
+              <BedDouble className="w-4 h-4 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
+            </div>
             <span>Active & Recent Guest Bookings</span>
           </span>
-          <span className="text-xs font-bold px-2.5 py-1 rounded-pill bg-forest-100 text-forest-800">
+          <span className="text-xs font-bold px-2.5 py-1 rounded-pill bg-forest-100 dark:bg-emerald-950/80 text-forest-800 dark:text-emerald-300 border border-forest-200 dark:border-emerald-500/30">
             {guests.length} Total
           </span>
         </div>
@@ -226,7 +228,7 @@ export default function BookingsLedger() {
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
+              <tr className="bg-slate-50 dark:bg-[#0b1612] border-b border-slate-200 dark:border-emerald-900/40 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
                 <th className="py-3 px-3">Guest Name</th>
                 <th className="py-3 px-3">Phone</th>
                 <th className="py-3 px-3">Dates</th>
@@ -239,30 +241,30 @@ export default function BookingsLedger() {
             <tbody>
               {guests.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-6 text-slate-400">
+                  <td colSpan="7" className="text-center py-6 text-slate-400 dark:text-slate-500">
                     No guest bookings recorded yet. Tap "+ New Guest Booking" to add one.
                   </td>
                 </tr>
               ) : (
                 guests.map((g) => (
-                  <tr key={g.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3 font-semibold text-slate-800">{g.name}</td>
-                    <td className="py-3 px-3 text-slate-600">{g.phone || '-'}</td>
-                    <td className="py-3 px-3 text-slate-600 whitespace-nowrap">{g.checkIn} to {g.checkOut}</td>
+                  <tr key={g.id} className="border-b border-slate-100 dark:border-emerald-900/20 hover:bg-slate-50 dark:hover:bg-[#13231c] transition-colors">
+                    <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-100">{g.name}</td>
+                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300">{g.phone || '-'}</td>
+                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{g.checkIn} to {g.checkOut}</td>
                     <td className="py-3 px-3">
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-pill bg-forest-100 text-forest-800">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-pill bg-forest-100 dark:bg-emerald-950/80 text-forest-800 dark:text-emerald-300 border border-forest-200 dark:border-emerald-800/40">
                         Room {g.roomNo}
                       </span>
                     </td>
-                    <td className="py-3 px-3 font-semibold text-slate-800">
+                    <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-100">
                       ₹{Number(g.totalAmount || 0).toLocaleString()}
                     </td>
                     <td className="py-3 px-3">
                       <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded-pill ${
+                        className={`text-xs font-bold px-2 py-0.5 rounded-pill border ${
                           g.status === 'Checked-in'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-sky-100 text-sky-800'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/40'
+                            : 'bg-sky-100 dark:bg-slate-900/90 text-sky-800 dark:text-slate-400 border-sky-200 dark:border-slate-700'
                         }`}
                       >
                         {g.status}
@@ -272,14 +274,14 @@ export default function BookingsLedger() {
                       {g.status === 'Checked-in' ? (
                         <button
                           onClick={() => handleCheckoutGuest(g.id)}
-                          className="bg-amberGold hover:bg-amberGold-hover text-white text-xs font-semibold px-3 py-1 rounded-lg transition-colors shadow-sm"
+                          className="bg-amberGold hover:bg-amber-400 text-white dark:text-forest-950 text-xs font-bold px-3 py-1 rounded-lg transition-colors shadow-sm cursor-pointer"
                         >
                           Check-out
                         </button>
                       ) : (
                         <button
                           onClick={() => handleDeleteGuest(g.id)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-3 py-1 rounded-lg transition-colors"
+                          className="bg-slate-100 hover:bg-slate-200 dark:bg-[#13231c] dark:hover:bg-rose-950 text-slate-700 dark:text-slate-400 dark:hover:text-rose-300 border border-slate-200 dark:border-emerald-900/30 text-xs font-semibold px-3 py-1 rounded-lg transition-colors cursor-pointer"
                         >
                           Delete
                         </button>
@@ -294,10 +296,12 @@ export default function BookingsLedger() {
       </div>
 
       {/* Cash Register Transactions Table */}
-      <div className="bg-white rounded-2xl p-5 mb-5 border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+      <div className="bg-white dark:bg-[#0f1d17] rounded-2xl p-5 mb-5 border border-slate-200 dark:border-emerald-900/40 shadow-sm dark:shadow-xl transition-colors">
         <div className="flex items-center justify-between gap-2 mb-4">
-          <span className="text-lg font-bold text-forest-800 flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-forest-800" aria-hidden="true" />
+          <span className="text-lg font-bold text-forest-800 dark:text-white flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-forest-50 dark:bg-emerald-950/80 border border-forest-200 dark:border-emerald-700/40 flex items-center justify-center text-forest-800 dark:text-emerald-400">
+              <Receipt className="w-4 h-4 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
+            </div>
             <span>Cash Register Transactions</span>
           </span>
         </div>
@@ -305,7 +309,7 @@ export default function BookingsLedger() {
         <div className="overflow-x-auto w-full">
           <table className="w-full text-left text-sm border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
+              <tr className="bg-slate-50 dark:bg-[#0b1612] border-b border-slate-200 dark:border-emerald-900/40 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">
                 <th className="py-3 px-3">Date</th>
                 <th className="py-3 px-3">Type</th>
                 <th className="py-3 px-3">Category</th>
@@ -317,34 +321,34 @@ export default function BookingsLedger() {
             <tbody>
               {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-6 text-slate-400">
+                  <td colSpan="6" className="text-center py-6 text-slate-400 dark:text-slate-500">
                     No cash transactions logged yet.
                   </td>
                 </tr>
               ) : (
                 transactions.map((t) => (
-                  <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-3 text-slate-600 whitespace-nowrap">{t.date}</td>
+                  <tr key={t.id} className="border-b border-slate-100 dark:border-emerald-900/20 hover:bg-slate-50 dark:hover:bg-[#13231c] transition-colors">
+                    <td className="py-3 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{t.date}</td>
                     <td className="py-3 px-3">
                       <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded-pill ${
+                        className={`text-xs font-bold px-2 py-0.5 rounded-pill border ${
                           t.type === 'INCOME'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/40'
+                            : 'bg-rose-100 dark:bg-rose-950/90 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-500/40'
                         }`}
                       >
                         {t.type}
                       </span>
                     </td>
-                    <td className="py-3 px-3 font-semibold text-slate-800">{t.category}</td>
-                    <td className="py-3 px-3 font-semibold text-slate-800">
-                      ₹{Number(t.amount || 0).toLocaleString()}
+                    <td className="py-3 px-3 font-semibold text-slate-800 dark:text-slate-200">{t.category}</td>
+                    <td className={`py-3 px-3 font-semibold ${t.type === 'INCOME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {t.type === 'INCOME' ? '+' : '-'}₹{Number(t.amount || 0).toLocaleString()}
                     </td>
-                    <td className="py-3 px-3 text-slate-600">{t.notes || '-'}</td>
+                    <td className="py-3 px-3 text-slate-600 dark:text-slate-400">{t.notes || '-'}</td>
                     <td className="py-3 px-3">
                       <button
                         onClick={() => handleDeleteTx(t.id)}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1"
+                        className="bg-slate-100 hover:bg-slate-200 dark:bg-[#13231c] hover:bg-rose-100 dark:hover:bg-rose-950 text-slate-600 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-300 border border-slate-200 dark:border-emerald-900/30 text-xs px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                         title="Delete transaction"
                       >
                         <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -360,100 +364,100 @@ export default function BookingsLedger() {
 
       {/* Modal 1: Add Guest */}
       {showGuestModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm dark:backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-[#0f1d17] rounded-2xl p-6 w-full max-w-lg shadow-xl dark:shadow-2xl border border-slate-200 dark:border-emerald-800/60 max-h-[90vh] overflow-y-auto text-slate-800 dark:text-slate-100">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-forest-800 flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-forest-800" aria-hidden="true" />
+              <h3 className="text-lg font-bold text-forest-800 dark:text-white flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
                 <span>Add New Guest Booking</span>
               </h3>
               <button
                 onClick={() => setShowGuestModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-2xl leading-none cursor-pointer"
               >
                 &times;
               </button>
             </div>
             <form onSubmit={handleSubmitGuest} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Guest Full Name *</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Guest Full Name *</label>
                 <input
                   type="text"
                   required
                   value={guestForm.name}
                   onChange={(e) => setGuestForm({ ...guestForm, name: e.target.value })}
                   placeholder="e.g. Rahul Sharma"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                  className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>
                   <input
                     type="tel"
                     value={guestForm.phone}
                     onChange={(e) => setGuestForm({ ...guestForm, phone: e.target.value })}
                     placeholder="e.g. 9876543210"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                    className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Room Number / Name *</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Room Number / Name *</label>
                   <input
                     type="text"
                     required
                     value={guestForm.roomNo}
                     onChange={(e) => setGuestForm({ ...guestForm, roomNo: e.target.value })}
                     placeholder="e.g. 101 or Kanchenjunga View"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                    className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Check-in Date *</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Check-in Date *</label>
                   <input
                     type="date"
                     required
                     value={guestForm.checkIn}
                     onChange={(e) => setGuestForm({ ...guestForm, checkIn: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                    className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Check-out Date *</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Check-out Date *</label>
                   <input
                     type="date"
                     required
                     value={guestForm.checkOut}
                     onChange={(e) => setGuestForm({ ...guestForm, checkOut: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                    className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Total Rate (₹) *</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Total Rate (₹) *</label>
                   <input
                     type="number"
                     required
                     value={guestForm.totalAmount}
                     onChange={(e) => setGuestForm({ ...guestForm, totalAmount: e.target.value })}
                     placeholder="e.g. 3000"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                    className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Advance Paid (₹)</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Advance Paid (₹)</label>
                   <input
                     type="number"
                     value={guestForm.advancePaid}
                     onChange={(e) => setGuestForm({ ...guestForm, advancePaid: e.target.value })}
                     placeholder="e.g. 1000"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                    className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                   />
                 </div>
               </div>
@@ -462,13 +466,13 @@ export default function BookingsLedger() {
                 <button
                   type="button"
                   onClick={() => setShowGuestModal(false)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+                  className="bg-slate-100 hover:bg-slate-200 dark:bg-[#13231c] dark:hover:bg-[#1a3528] text-slate-700 dark:text-slate-300 text-sm font-semibold px-4 py-2 rounded-lg transition-colors border border-slate-200 dark:border-emerald-900/40 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-forest-800 hover:bg-forest-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow transition-colors"
+                  className="bg-forest-800 hover:bg-forest-700 dark:bg-gradient-to-r dark:from-emerald-600 dark:to-forest-700 dark:hover:from-emerald-500 dark:hover:to-forest-600 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm dark:shadow-md transition-colors border border-transparent dark:border-emerald-500/30 cursor-pointer"
                 >
                   Save Booking
                 </button>
@@ -480,16 +484,16 @@ export default function BookingsLedger() {
 
       {/* Modal 2: Add Transaction */}
       {showTxModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/75 backdrop-blur-sm dark:backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-[#0f1d17] rounded-2xl p-6 w-full max-w-lg shadow-xl dark:shadow-2xl border border-slate-200 dark:border-emerald-800/60 max-h-[90vh] overflow-y-auto text-slate-800 dark:text-slate-100">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-forest-800 flex items-center gap-2">
-                <Banknote className="w-5 h-5 text-forest-800" aria-hidden="true" />
+              <h3 className="text-lg font-bold text-forest-800 dark:text-white flex items-center gap-2">
+                <Banknote className="w-5 h-5 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
                 <span>Log Cash Transaction</span>
               </h3>
               <button
                 onClick={() => setShowTxModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-2xl leading-none cursor-pointer"
               >
                 &times;
               </button>
@@ -497,53 +501,53 @@ export default function BookingsLedger() {
             <form onSubmit={handleSubmitTx} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Transaction Type *</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Transaction Type *</label>
                   <select
                     value={txForm.type}
                     onChange={(e) => setTxForm({ ...txForm, type: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-forest-700 bg-white"
+                    className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                   >
-                    <option value="INCOME">INCOME (+ Cash Received)</option>
-                    <option value="EXPENSE">EXPENSE (- Cash Spent)</option>
+                    <option value="INCOME" className="bg-white dark:bg-[#0b1612]">INCOME (+ Cash Received)</option>
+                    <option value="EXPENSE" className="bg-white dark:bg-[#0b1612]">EXPENSE (- Cash Spent)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Amount (₹) *</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Amount (₹) *</label>
                   <input
                     type="number"
                     required
                     value={txForm.amount}
                     onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
                     placeholder="e.g. 500"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                    className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Category *</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Category *</label>
                 <select
                   value={txForm.category}
                   onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-forest-700 bg-white"
+                  className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                 >
-                  <option value="Room Rent">Room Rent / Booking</option>
-                  <option value="Meals & Drinks">Meals, Tea & Food</option>
-                  <option value="Firewood & Heating">Firewood & Heating</option>
-                  <option value="Groceries & Milk">Groceries & Milk</option>
-                  <option value="Shared Taxi / Transport">Shared Taxi / Transport</option>
-                  <option value="Other">Other Expense</option>
+                  <option value="Room Rent" className="bg-white dark:bg-[#0b1612]">Room Rent / Booking</option>
+                  <option value="Meals & Drinks" className="bg-white dark:bg-[#0b1612]">Meals, Tea & Food</option>
+                  <option value="Firewood & Heating" className="bg-white dark:bg-[#0b1612]">Firewood & Heating</option>
+                  <option value="Groceries & Milk" className="bg-white dark:bg-[#0b1612]">Groceries & Milk</option>
+                  <option value="Shared Taxi / Transport" className="bg-white dark:bg-[#0b1612]">Shared Taxi / Transport</option>
+                  <option value="Other" className="bg-white dark:bg-[#0b1612]">Other Expense</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Notes / Description</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Notes / Description</label>
                 <input
                   type="text"
                   value={txForm.notes}
                   onChange={(e) => setTxForm({ ...txForm, notes: e.target.value })}
                   placeholder="e.g. Advance paid by Mr. Sharma"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-forest-700"
+                  className="w-full bg-white dark:bg-[#0b1612] border border-slate-300 dark:border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500"
                 />
               </div>
 
@@ -551,13 +555,13 @@ export default function BookingsLedger() {
                 <button
                   type="button"
                   onClick={() => setShowTxModal(false)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+                  className="bg-slate-100 hover:bg-slate-200 dark:bg-[#13231c] dark:hover:bg-[#1a3528] text-slate-700 dark:text-slate-300 text-sm font-semibold px-4 py-2 rounded-lg transition-colors border border-slate-200 dark:border-emerald-900/40 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-forest-800 hover:bg-forest-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow transition-colors"
+                  className="bg-forest-800 hover:bg-forest-700 dark:bg-gradient-to-r dark:from-emerald-600 dark:to-forest-700 dark:hover:from-emerald-500 dark:hover:to-forest-600 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm dark:shadow-md transition-colors border border-transparent dark:border-emerald-500/30 cursor-pointer"
                 >
                   Log Transaction
                 </button>

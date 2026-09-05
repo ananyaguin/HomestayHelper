@@ -4,8 +4,8 @@
   "description": "Offline toolkit for first-time homestay hosts in tea garden villages.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0f281e",
-  "theme_color": "#1b4332",
+  "background_color": "#080f0c",
+  "theme_color": "#080f0c",
   "orientation": "portrait",
   "icons": [
     {
