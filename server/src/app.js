@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
 const healthRouter = require('./routes/health');
+const authRouter = require('./routes/auth');
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/health', healthRouter);
+app.use('/api/auth', authRouter);
 
 // Health check route
 app.get('/health', (req, res) => {
