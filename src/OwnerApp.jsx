@@ -26,11 +26,16 @@ import {
   MapPin,
   Key,
   ShieldAlert,
-  Bot
+  Bot,
+  Menu,
+  X,
+  Send,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function OwnerApp() {
   const [activeTab, setActiveTab] = useState('tabDashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [deferredPrompt, setDeferredPrompt] = useState(typeof window !== 'undefined' ? window.deferredPrompt || null : null);
   const [theme, setTheme] = useState(() => {
@@ -54,6 +59,53 @@ export default function OwnerApp() {
   });
   const [showInstallNotice, setShowInstallNotice] = useState(false);
 
+  // Dedicated AI Assistant Chat state (UI ONLY)
+  const [aiInputText, setAiInputText] = useState('');
+  const [aiChatMessages, setAiChatMessages] = useState([
+    {
+      sender: 'assistant',
+      text: "Hello! 👋 I'm your Homestay AI Assistant. Ask me anything about guest services, room readiness, or local recommendations.",
+      time: 'Just now'
+    }
+  ]);
+
+  const handleSendAiMessage = (msgText) => {
+    const textToSend = msgText || aiInputText;
+    if (!textToSend.trim()) return;
+
+    const userMsg = {
+      sender: 'user',
+      text: textToSend,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setAiChatMessages((prev) => [...prev, userMsg]);
+    setAiInputText('');
+
+    // Simulate AI response
+    setTimeout(() => {
+      let replyText = "I've logged your query. Our homestay assistant system will manage guest details automatically.";
+      if (textToSend.toLowerCase().includes('breakfast')) {
+        replyText = "Organic breakfast is served from 7:30 AM to 10:00 AM daily in the main tea garden dining hall.";
+      } else if (textToSend.toLowerCase().includes('wifi') || textToSend.toLowerCase().includes('wi-fi')) {
+        replyText = "The guest Wi-Fi network is 'MountainView_Guest_5G' with password 'Homestay2026!'.";
+      } else if (textToSend.toLowerCase().includes('visit') || textToSend.toLowerCase().includes('places')) {
+        replyText = "Recommended nearby spots: Pine Forest Trail (15m walk), Sunrise Mountain View (2.5 km), and Organic Tea Estate (1.2 km).";
+      } else if (textToSend.toLowerCase().includes('check-out') || textToSend.toLowerCase().includes('checkout')) {
+        replyText = "Standard check-out time for guests is 11:00 AM.";
+      } else if (textToSend.toLowerCase().includes('room service')) {
+        replyText = "Room service requests can be fulfilled directly via the Requests tab or by calling host Anand (+91 98765 43210).";
+      }
+
+      const botMsg = {
+        sender: 'assistant',
+        text: replyText,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      setAiChatMessages((prev) => [...prev, botMsg]);
+    }, 400);
+  };
+
   // Compute formatted current date
   const formattedDate = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -73,7 +125,7 @@ export default function OwnerApp() {
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   useEffect(() => {
@@ -96,21 +148,22 @@ export default function OwnerApp() {
 
     // 3. Register Service Worker
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
-        .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+      navigator.serviceWorker
+        .register('./sw.js')
+        .then((reg) => console.log('[PWA] Service Worker registered:', reg.scope))
+        .catch((err) => console.warn('[PWA] Service Worker registration failed:', err));
     }
 
     // 4. Standalone & PWA Install Prompt Listeners
     const checkStandalone = () => {
-      const isStandaloneMode = (typeof window !== 'undefined') && (
-        window.matchMedia('(display-mode: standalone)').matches ||
-        window.matchMedia('(display-mode: fullscreen)').matches ||
-        window.matchMedia('(display-mode: minimal-ui)').matches ||
-        window.matchMedia('(display-mode: window-controls-overlay)').matches ||
-        window.navigator.standalone === true ||
-        (document.referrer && document.referrer.includes('android-app://'))
-      );
+      const isStandaloneMode =
+        typeof window !== 'undefined' &&
+        (window.matchMedia('(display-mode: standalone)').matches ||
+          window.matchMedia('(display-mode: fullscreen)').matches ||
+          window.matchMedia('(display-mode: minimal-ui)').matches ||
+          window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+          window.navigator.standalone === true ||
+          (document.referrer && document.referrer.includes('android-app://')));
       if (isStandaloneMode) {
         setIsStandalone(true);
         setShowInstallNotice(false);
@@ -196,14 +249,13 @@ export default function OwnerApp() {
     { id: 'tabChecklist', label: 'Checklist', Icon: ClipboardCheck },
     { id: 'tabRequests', label: 'Requests', Icon: Bell, badge: '3' },
     { id: 'tabRooms', label: 'Rooms', Icon: Key },
-    { id: 'tabSettings', label: 'Settings', Icon: Settings },
+    { id: 'tabSettings', label: 'Settings', Icon: Settings }
   ];
 
   return (
-    <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#080f0c] pb-24 lg:pb-12 text-slate-800 dark:text-slate-100 selection:bg-emerald-800 selection:text-white transition-colors duration-200">
-      
+    <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#080f0c] text-slate-800 dark:text-slate-100 selection:bg-emerald-800 selection:text-white transition-colors duration-200 overflow-x-hidden">
       {/* Top Header / Branding */}
-      <header className="bg-gradient-to-r from-forest-900 to-forest-800 dark:from-[#07130e] dark:via-[#0b1e16] dark:to-[#0f261c] text-white px-4 py-3 sticky top-0 z-40 shadow-sm border-b border-transparent dark:border-emerald-900/30 backdrop-blur-md transition-colors duration-200">
+      <header className="bg-gradient-to-r from-forest-900 to-forest-800 dark:from-[#07130e] dark:via-[#0b1e16] dark:to-[#0f261c] text-white px-4 py-3 sticky top-0 z-50 shadow-sm border-b border-transparent dark:border-emerald-900/30 backdrop-blur-md transition-colors duration-200">
         <div className="w-full flex justify-between items-center gap-2 px-0 sm:px-2">
           <div className="flex items-center gap-3 min-w-0">
             <img
@@ -221,13 +273,13 @@ export default function OwnerApp() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Theme Toggle Button */}
+          {/* Desktop Right Actions (Theme Toggle & Download App) */}
+          <div className="hidden lg:flex items-center gap-2 shrink-0">
             <button
               onClick={toggleTheme}
               title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
               aria-label="Toggle Theme"
-              className="inline-flex items-center justify-center p-2 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 dark:bg-white/10 dark:hover:bg-white/20 text-white active:scale-95 transition-all border border-white/20 shrink-0 cursor-pointer"
+              className="inline-flex items-center justify-center p-2 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 dark:bg-white/10 dark:hover:bg-white/20 text-white active:scale-95 transition-all border border-white/20 shrink-0 cursor-pointer min-h-[44px] min-w-[44px]"
             >
               {theme === 'dark' ? (
                 <Sun className="w-4 h-4 text-amber-300" aria-hidden="true" />
@@ -242,11 +294,10 @@ export default function OwnerApp() {
                   onClick={handleInstallClick}
                   title="Download and install Homestay Helper app on your device"
                   aria-label="Download App"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amberGold text-forest-950 hover:bg-amber-400 active:scale-95 transition-all shadow-sm border border-amber-300/50 shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-amberGold text-forest-950 hover:bg-amber-400 active:scale-95 transition-all shadow-sm border border-amber-300/50 shrink-0 cursor-pointer min-h-[44px]"
                 >
                   <Download className="w-4 h-4 text-forest-950 shrink-0" aria-hidden="true" />
-                  <span className="hidden sm:inline">Download App</span>
-                  <span className="sm:hidden">Download</span>
+                  <span>Download App</span>
                 </button>
 
                 {showInstallNotice && (
@@ -264,14 +315,69 @@ export default function OwnerApp() {
                       </button>
                     </div>
                     <p className="text-slate-300 text-[11px] leading-relaxed">
-                      To install: open browser menu (<span className="font-semibold text-white">⋮</span> or share button) and choose <strong className="text-amberGold dark:text-emerald-300">Add to Home screen</strong> or <strong className="text-amberGold dark:text-emerald-300">Install app</strong>.
+                      To install: open browser menu (<span className="font-semibold text-white">⋮</span> or share button) and choose{' '}
+                      <strong className="text-amberGold dark:text-emerald-300">Add to Home screen</strong> or{' '}
+                      <strong className="text-amberGold dark:text-emerald-300">Install app</strong>.
                     </p>
                   </div>
                 )}
               </div>
             )}
           </div>
+
+          {/* Mobile Hamburger Button (>=44x44px) */}
+          <div className="lg:hidden flex items-center shrink-0">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Toggle Mobile Navigation Menu"
+              className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer border border-white/20 transition-colors"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6 text-white" aria-hidden="true" />
+              ) : (
+                <Menu className="w-6 h-6 text-white" aria-hidden="true" />
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Dropdown Navigation Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden bg-white dark:bg-[#0c1813] border-b border-slate-200 dark:border-emerald-900/40 p-3 shadow-2xl animate-fadeIn space-y-1">
+            {navItems.map((item) => {
+              const ItemIcon = item.Icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileMenuOpen(false);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-base font-semibold transition-all cursor-pointer min-h-[48px] ${
+                    isActive
+                      ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border-l-4 border-emerald-600 dark:border-emerald-400'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
+                  }`}
+                >
+                  <ItemIcon
+                    className={`w-5 h-5 shrink-0 ${
+                      isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.badge && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-500 text-white shrink-0">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </header>
 
       {/* Offline Notice Banner */}
@@ -282,12 +388,11 @@ export default function OwnerApp() {
         </div>
       )}
 
-      {/* Main Layout Container (FLUSH LEFT SIDEBAR + CONTENT AREA) */}
+      {/* Main Layout Container (FLUSH LEFT SIDEBAR ON DESKTOP + CONTENT AREA) */}
       <div className="w-full flex flex-col lg:flex-row min-h-[calc(100vh-57px)]">
-        
-        {/* FLUSH LIGHT SIDEBAR (Desktop View: Fixed ~260px width, larger text size) */}
-        <aside className="w-full lg:w-[260px] shrink-0 bg-white dark:bg-[#0c1813] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-emerald-900/30 p-2 lg:py-5 lg:px-3 transition-colors">
-          <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible gap-1 pb-1 lg:pb-0 scrollbar-none">
+        {/* DESKTOP SIDEBAR ONLY (Hidden on mobile) */}
+        <aside className="hidden lg:block w-[260px] shrink-0 bg-white dark:bg-[#0c1813] border-r border-slate-200 dark:border-emerald-900/30 py-5 px-3 transition-colors">
+          <nav className="flex flex-col gap-1">
             {navItems.map((item) => {
               const ItemIcon = item.Icon;
               const isActive = activeTab === item.id;
@@ -298,7 +403,7 @@ export default function OwnerApp() {
                     setActiveTab(item.id);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                  className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-base font-semibold transition-all cursor-pointer ${
                     isActive
                       ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border-r-3 border-emerald-600 dark:border-emerald-400 shadow-2xs'
                       : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
@@ -310,7 +415,7 @@ export default function OwnerApp() {
                     }`}
                     aria-hidden="true"
                   />
-                  <span className="flex-1 text-left text-sm sm:text-base font-semibold">{item.label}</span>
+                  <span className="flex-1 text-left">{item.label}</span>
                   {item.badge && (
                     <span className="px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-500 text-white shrink-0">
                       {item.badge}
@@ -324,17 +429,13 @@ export default function OwnerApp() {
 
         {/* MAIN CONTENT AREA */}
         <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
-          
           {/* TAB 1: DASHBOARD OVERVIEW */}
           {activeTab === 'tabDashboard' && (
             <div className="space-y-5">
-              
               {/* Main 2-Column Desktop Layout Grid (Left: 70%, Right: 30%) */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
-                
                 {/* Left Column (Main Dashboard Sections & Compact Stat Cards) */}
                 <div className="lg:col-span-2 space-y-5">
-                  
                   {/* Compact Overview Stats Cards Grid (4-col on sm) */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                     {/* Active Guests */}
@@ -391,15 +492,21 @@ export default function OwnerApp() {
                     <ul className="space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium mb-4">
                       <li className="flex items-start gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-2" />
-                        <span><strong>2 guests</strong> are checking in today (Rahul & Ananya).</span>
+                        <span>
+                          <strong>2 guests</strong> are checking in today (Rahul & Ananya).
+                        </span>
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
-                        <span><strong>1 room</strong> (Room 201) will become available tomorrow.</span>
+                        <span>
+                          <strong>1 room</strong> (Room 201) will become available tomorrow.
+                        </span>
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-2" />
-                        <span>You have <strong>3 pending guest requests</strong> waiting for response.</span>
+                        <span>
+                          You have <strong>3 pending guest requests</strong> waiting for response.
+                        </span>
                       </li>
                     </ul>
 
@@ -456,14 +563,12 @@ export default function OwnerApp() {
                       </div>
                     </div>
                   </div>
-
                 </div>
 
                 {/* Right Column: Assistance Panel Widget Column */}
                 <div className="space-y-4">
-                  
-                  {/* CARD 1: AI Guest Assistant */}
-                  <div className="bg-[#f0f7f4] dark:bg-[#0c1f19] p-4 sm:p-5 rounded-3xl border border-emerald-100 dark:border-emerald-900/50 shadow-2xs">
+                  {/* CARD 1: AI Guest Assistant (HIDDEN ON MOBILE, VISIBLE ON DESKTOP) */}
+                  <div className="hidden lg:block bg-[#f0f7f4] dark:bg-[#0c1f19] p-4 sm:p-5 rounded-3xl border border-emerald-100 dark:border-emerald-900/50 shadow-2xs">
                     {/* Header */}
                     <div className="flex items-start gap-3 mb-3">
                       <div className="w-9 h-9 rounded-2xl bg-emerald-100 dark:bg-emerald-900/80 flex items-center justify-center text-emerald-800 dark:text-emerald-300 shrink-0 shadow-2xs">
@@ -471,7 +576,9 @@ export default function OwnerApp() {
                       </div>
                       <div>
                         <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">AI Guest Assistant</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Ask anything about your stay, services or local area.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                          Ask anything about your stay, services or local area.
+                        </p>
                       </div>
                     </div>
 
@@ -499,7 +606,10 @@ export default function OwnerApp() {
                         ].map((chip) => (
                           <button
                             key={chip.label}
-                            onClick={() => setActiveTab('tabCommunicator')}
+                            onClick={() => {
+                              setActiveTab('tabAiAssistant');
+                              handleSendAiMessage(chip.label);
+                            }}
                             className="w-full bg-white dark:bg-[#07130e] hover:bg-emerald-50 dark:hover:bg-emerald-950/80 border border-slate-200/80 dark:border-emerald-900/50 rounded-full px-3 py-2 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer truncate"
                           >
                             <span className="shrink-0">{chip.icon}</span>
@@ -515,9 +625,13 @@ export default function OwnerApp() {
                     <div className="min-w-0 flex-1 z-10">
                       <div className="flex items-center gap-1.5 mb-1">
                         <Sparkles className="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" />
-                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight truncate">Guest Welcome Mode</h3>
+                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight truncate">
+                          Guest Welcome Mode
+                        </h3>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug">Help your guests feel at home</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug">
+                        Help your guests feel at home
+                      </p>
 
                       <button
                         onClick={() => alert('Guest Welcome Mode active. Starting guest check-in & welcome guide.')}
@@ -540,12 +654,20 @@ export default function OwnerApp() {
                         <div className="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
                           !
                         </div>
-                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight truncate">Emergency Mode</h3>
+                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight truncate">
+                          Emergency Mode
+                        </h3>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug">Quick access to help and essential phrases</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug">
+                        Quick access to help and essential phrases
+                      </p>
 
                       <button
-                        onClick={() => alert('Emergency Assistance: Local Police (112), Medical Emergency (102), Local Clinic (+91 98320 00000).')}
+                        onClick={() =>
+                          alert(
+                            'Emergency Assistance: Local Police (112), Medical Emergency (108), Local Clinic (+91 98320 00000).'
+                          )
+                        }
                         className="mt-3 bg-[#ef475d] hover:bg-[#db3349] text-white text-xs font-bold rounded-full py-2.5 px-4 shadow-sm inline-flex items-center gap-1.5 transition-all cursor-pointer min-h-[40px]"
                       >
                         <span>Open Emergency Assistance</span>
@@ -557,11 +679,106 @@ export default function OwnerApp() {
                       🚨
                     </div>
                   </div>
-
                 </div>
+              </div>
+            </div>
+          )}
 
+          {/* DEDICATED AI ASSISTANT PAGE (UI ONLY FOR MOBILE OR FLOATING NAV) */}
+          {activeTab === 'tabAiAssistant' && (
+            <div className="space-y-4 max-w-2xl mx-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-emerald-900/30">
+                <button
+                  onClick={() => setActiveTab('tabDashboard')}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-[#0f1d17] border border-slate-200 dark:border-emerald-900/40 hover:bg-slate-50 active:scale-95 transition-all min-h-[44px] cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Dashboard</span>
+                </button>
+                <div className="text-right">
+                  <h2 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white flex items-center justify-end gap-2">
+                    <Bot className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    <span>AI Guest Assistant</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Ask anything about stay, services or local area
+                  </p>
+                </div>
               </div>
 
+              {/* Suggested Questions Chips */}
+              <div className="bg-white dark:bg-[#0f1d17] p-3.5 rounded-2xl border border-slate-200 dark:border-emerald-900/40 space-y-2">
+                <p className="text-xs font-bold text-[#164A34] dark:text-emerald-300 uppercase tracking-wider">
+                  Suggested Questions
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Where can I have breakfast?',
+                    'What is the Wi-Fi password?',
+                    'What are nearby places to visit?',
+                    'Check-out time?',
+                    'Room service'
+                  ].map((qText) => (
+                    <button
+                      key={qText}
+                      onClick={() => handleSendAiMessage(qText)}
+                      className="px-3 py-2 rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-200 border border-emerald-200 dark:border-emerald-700/50 text-xs font-semibold hover:bg-emerald-100 transition-colors cursor-pointer min-h-[38px]"
+                    >
+                      {qText}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chat Thread */}
+              <div className="bg-white dark:bg-[#0f1d17] p-4 rounded-2xl border border-slate-200 dark:border-emerald-900/40 min-h-[340px] max-h-[500px] flex flex-col justify-between space-y-4">
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                  {aiChatMessages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                    >
+                      <div
+                        className={`max-w-[85%] p-3.5 rounded-2xl text-xs sm:text-sm font-medium ${
+                          msg.sender === 'user'
+                            ? 'bg-emerald-700 text-white rounded-br-none'
+                            : 'bg-slate-100 dark:bg-[#07130e] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-emerald-900/40 rounded-bl-none'
+                        }`}
+                      >
+                        {msg.text}
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-1 px-1">{msg.time}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Input Area */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (aiInputText.trim()) {
+                      handleSendAiMessage(aiInputText);
+                    }
+                  }}
+                  className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-emerald-900/30"
+                >
+                  <input
+                    type="text"
+                    value={aiInputText}
+                    onChange={(e) => setAiInputText(e.target.value)}
+                    placeholder="Ask a question about your stay..."
+                    className="flex-1 bg-slate-50 dark:bg-[#07130e] text-slate-900 dark:text-white px-4 py-2.5 rounded-xl border border-slate-200 dark:border-emerald-900/40 text-xs sm:text-sm focus:outline-none focus:border-emerald-500 min-h-[44px]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!aiInputText.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all min-h-[44px] cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span className="hidden sm:inline">Send</span>
+                  </button>
+                </form>
+              </div>
             </div>
           )}
 
@@ -629,7 +846,9 @@ export default function OwnerApp() {
                 <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs font-bold text-slate-900 dark:text-white">Room 101 — Deluxe Balcony</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">Occupied</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                      Occupied
+                    </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Guest: Priya & Family</p>
                 </div>
@@ -637,7 +856,9 @@ export default function OwnerApp() {
                 <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs font-bold text-slate-900 dark:text-white">Room 203 — Tea Suite</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">Occupied</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                      Occupied
+                    </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">Guest: Rahul Sharma</p>
                 </div>
@@ -645,7 +866,7 @@ export default function OwnerApp() {
             </div>
           )}
 
-          {/* TAB 8: SETTINGS */}
+          {/* TAB 8: SETTINGS (INCLUDES MOVED THEME TOGGLE) */}
           {activeTab === 'tabSettings' && (
             <div className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
@@ -656,97 +877,63 @@ export default function OwnerApp() {
               </div>
 
               <div className="space-y-3 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                {/* Theme Toggle Settings Option */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30 flex justify-between items-center gap-3">
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                      Appearance & Theme
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Current theme mode: <strong className="capitalize text-emerald-700 dark:text-emerald-300">{theme}</strong>
+                    </p>
+                  </div>
+                  <button
+                    onClick={toggleTheme}
+                    className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white transition-all shadow-xs cursor-pointer min-h-[44px]"
+                  >
+                    {theme === 'dark' ? (
+                      <>
+                        <Sun className="w-4 h-4 text-amber-300" aria-hidden="true" />
+                        <span>Switch to Light</span>
+                      </>
+                    ) : (
+                      <>
+                        <Moon className="w-4 h-4 text-emerald-200" aria-hidden="true" />
+                        <span>Switch to Dark</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
                 <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30 flex justify-between items-center">
                   <div>
                     <p className="font-bold text-slate-900 dark:text-white">Homestay Name</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">Mountain View Homestay</p>
                   </div>
-                  <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Edit Profile</span>
+                  <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium cursor-pointer">
+                    Edit Profile
+                  </span>
                 </div>
               </div>
             </div>
           )}
-
         </main>
       </div>
 
-      {/* Bottom Navigation Bar (Mobile View) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#0c1813]/95 backdrop-blur-lg border-t border-slate-200 dark:border-emerald-900/40 z-50 flex justify-around py-1.5 px-1 shadow-sm transition-colors">
+      {/* Floating AI Assistant Action Button (Shown on mobile Dashboard when activeTab === 'tabDashboard') */}
+      {activeTab === 'tabDashboard' && (
         <button
           onClick={() => {
-            setActiveTab('tabDashboard');
+            setActiveTab('tabAiAssistant');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors w-1/5 min-h-[44px] justify-center cursor-pointer ${
-            activeTab === 'tabDashboard'
-              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 font-bold'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'
-          }`}
+          className="lg:hidden fixed bottom-6 right-5 z-40 bg-[#164A34] hover:bg-[#123D2A] text-white px-4 py-3 rounded-full shadow-2xl border-2 border-emerald-400/80 flex items-center gap-2.5 cursor-pointer active:scale-95 font-bold text-sm transition-all"
+          aria-label="Open AI Guest Assistant"
         >
-          <LayoutDashboard className={`w-4 h-4 ${activeTab === 'tabDashboard' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} aria-hidden="true" />
-          <span>Dashboard</span>
+          <Bot className="w-5 h-5 text-emerald-300 shrink-0" />
+          <span>AI Assistant</span>
         </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('tabCommunicator');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors w-1/5 min-h-[44px] justify-center cursor-pointer ${
-            activeTab === 'tabCommunicator'
-              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 font-bold'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'
-          }`}
-        >
-          <MessageSquare className={`w-4 h-4 ${activeTab === 'tabCommunicator' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} aria-hidden="true" />
-          <span>Translate</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('tabLedger');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors w-1/5 min-h-[44px] justify-center cursor-pointer ${
-            activeTab === 'tabLedger'
-              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 font-bold'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'
-          }`}
-        >
-          <BookOpen className={`w-4 h-4 ${activeTab === 'tabLedger' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} aria-hidden="true" />
-          <span>Ledger</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('tabListing');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors w-1/5 min-h-[44px] justify-center cursor-pointer ${
-            activeTab === 'tabListing'
-              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 font-bold'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'
-          }`}
-        >
-          <Sparkles className={`w-4 h-4 ${activeTab === 'tabListing' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} aria-hidden="true" />
-          <span>Listing</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab('tabChecklist');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg text-[10px] font-semibold transition-colors w-1/5 min-h-[44px] justify-center cursor-pointer ${
-            activeTab === 'tabChecklist'
-              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 font-bold'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900'
-          }`}
-        >
-          <ClipboardCheck className={`w-4 h-4 ${activeTab === 'tabChecklist' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} aria-hidden="true" />
-          <span>Checklist</span>
-        </button>
-      </nav>
+      )}
     </div>
   );
 }
