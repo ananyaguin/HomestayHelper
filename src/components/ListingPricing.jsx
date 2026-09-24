@@ -83,8 +83,6 @@ export default function ListingPricing() {
       }
     }
     loadProfile();
-
-    // 2. Subscribe to AI engine status & run initial health check
     const unsubscribe = homestayAI.subscribeStatus((status, error) => {
       setEngineStatus(status);
       setEngineError(error);
@@ -149,14 +147,12 @@ export default function ListingPricing() {
       console.warn('[ListingPricing] IndexedDB save error:', dbErr);
     }
 
-    // 2. Calculate Pricing deterministically (Pure math, no AI, counts all amenities)
     const pricing = calculatePricing({
       roomCategory: profile.roomType,
       amenities: profile.amenities
     });
     setPricingInfo(pricing);
 
-    // 3. Generate natural-language bilingual listing with real on-device Gemma 4 E2B
     setIsGenerating(true);
     try {
       const listing = await homestayAI.generateListingText(profile);

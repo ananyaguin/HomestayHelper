@@ -51,10 +51,7 @@ export default function GuestCommunicator() {
 
   return (
     <div className="space-y-6">
-      {/* 1. Offline AI Translator (Top Section) */}
       <OfflineTranslator />
-
-      {/* 2. Quick Hospitality Phrases (Bottom Section) */}
       <div className="bg-white dark:bg-[#0f1d17] rounded-2xl p-5 border border-slate-200 dark:border-emerald-900/40 shadow-sm dark:shadow-xl transition-colors duration-200">
         {/* Header */}
         <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">

@@ -19,7 +19,6 @@ export default function HostReadinessChecklist() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure Safety card is removed even if present in old cached state
         return parsed.filter(
           (c) => c.id !== 'cat_safety' && c.title !== 'Safety & Emergency Preparedness' && c.category !== 'Safety & Emergency Preparedness'
         );
@@ -30,15 +29,11 @@ export default function HostReadinessChecklist() {
     return DEFAULT_CATEGORIES;
   });
 
-  // State for Add Task inline form (category ID where task is being added)
   const [addingTaskCatId, setAddingTaskCatId] = useState(null);
   const [newTaskText, setNewTaskText] = useState('');
 
-  // State for Add Category form
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryTitle, setNewCategoryTitle] = useState('');
-
-  // State for confirmation modal: { type: 'task' | 'category', catId, taskId, message }
   const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
@@ -49,7 +44,6 @@ export default function HostReadinessChecklist() {
     }
   }, [categories]);
 
-  // Helper to pick Lucide icon for category
   const renderCategoryIcon = (cat) => {
     if (cat.id === 'cat_room') return <BedDouble className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />;
     if (cat.id === 'cat_hyg') return <Droplets className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />;
