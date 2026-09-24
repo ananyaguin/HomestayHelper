@@ -261,11 +261,10 @@ export default function BookingsLedger() {
                     </td>
                     <td className="py-3 px-3">
                       <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded-pill border ${
-                          g.status === 'Checked-in'
+                        className={`text-xs font-bold px-2 py-0.5 rounded-pill border ${g.status === 'Checked-in'
                             ? 'bg-emerald-100 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/40'
                             : 'bg-sky-100 dark:bg-slate-900/90 text-sky-800 dark:text-slate-400 border-sky-200 dark:border-slate-700'
-                        }`}
+                          }`}
                       >
                         {g.status}
                       </span>
@@ -331,11 +330,10 @@ export default function BookingsLedger() {
                     <td className="py-3 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">{t.date}</td>
                     <td className="py-3 px-3">
                       <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded-pill border ${
-                          t.type === 'INCOME'
+                        className={`text-xs font-bold px-2 py-0.5 rounded-pill border ${t.type === 'INCOME'
                             ? 'bg-emerald-100 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/40'
                             : 'bg-rose-100 dark:bg-rose-950/90 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-500/40'
-                        }`}
+                          }`}
                       >
                         {t.type}
                       </span>

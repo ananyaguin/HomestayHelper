@@ -1,10 +1,10 @@
 /**
  * On-Device Gemma AI Service for Homestay Helper
- * Connects directly to local Ollama runtime running Gemma 4 E2B (gemma4:e2b)
+ * Connects directly to local Ollama runtime running Gemma 4 E2B (gemma4:e4b)
  * 100% Offline, Zero Cloud APIs.
  */
 
-const MODEL_NAME = 'gemma4:e2b';
+const MODEL_NAME = 'gemma4:e4b';
 
 class HomestayAI {
   constructor() {
@@ -59,7 +59,7 @@ class HomestayAI {
   }
 
   /**
-   * Checks whether Ollama is active and if the gemma4:e2b model is available locally.
+   * Checks whether Ollama is active and if the gemma4:e4b model is available locally.
    * Returns: 'ready' | 'offline' | 'unavailable'
    */
   async checkEngineStatus() {
@@ -71,7 +71,7 @@ class HomestayAI {
       const models = data.models || [];
       const hasGemma = models.some((m) => {
         const name = (m.name || m.model || '').toLowerCase();
-        return name === MODEL_NAME || name.startsWith('gemma4:e2b');
+        return name === MODEL_NAME || name.startsWith('gemma4:e4b');
       });
 
       if (hasGemma) {
