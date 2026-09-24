@@ -30,10 +30,11 @@ import {
   Menu,
   X,
   Send,
-  ArrowLeft
+  ArrowLeft,
+  LogOut
 } from 'lucide-react';
 
-export default function OwnerApp() {
+export default function OwnerApp({ onLogout }) {
   const [activeTab, setActiveTab] = useState('tabDashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [drawerAnimatingOut, setDrawerAnimatingOut] = useState(false);
@@ -880,7 +881,7 @@ export default function OwnerApp() {
                     <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">Hot tea kettle refill</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Room 203 • Ananya Sen</p>
                   </div>
-                  <button className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 min-h-[44px] cursor-pointer">
+                  <button className="px-3 py-1.5 rounded-md bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 min-h-[44px] cursor-pointer">
                     Fulfill
                   </button>
                 </div>
@@ -923,7 +924,7 @@ export default function OwnerApp() {
             </div>
           )}
 
-          {/* TAB 8: SETTINGS (INCLUDES MOVED THEME TOGGLE) */}
+          {/* TAB 8: SETTINGS (INCLUDES MOVED THEME TOGGLE & LOGOUT) */}
           {activeTab === 'tabSettings' && (
             <div className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
@@ -959,6 +960,28 @@ export default function OwnerApp() {
                         <span>Switch to Dark</span>
                       </>
                     )}
+                  </button>
+                </div>
+
+                {/* Sign Out Option */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30 flex justify-between items-center gap-3">
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-white text-sm sm:text-base">
+                      Owner Account Session
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Sign out of Homestay Owner Dashboard
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (onLogout) onLogout();
+                      window.location.href = '/login';
+                    }}
+                    className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-rose-700 hover:bg-rose-800 text-white transition-all shadow-xs cursor-pointer min-h-[44px]"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
 

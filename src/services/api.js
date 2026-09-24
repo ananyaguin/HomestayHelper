@@ -7,6 +7,7 @@
  * - Guest token authentication (X-Guest-Token: <token>)
  * - JSON request/response handling
  * - Normalized ApiError exceptions with HTTP status
+ * - Session storage persistence for owner JWT
  */
 
 export class ApiError extends Error {
@@ -18,14 +19,24 @@ export class ApiError extends Error {
   }
 }
 
-let ownerToken = null;
+let ownerToken = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('ownerToken') : null;
 let guestToken = null;
 
 export function setOwnerToken(jwt) {
   ownerToken = jwt;
+  if (typeof sessionStorage !== 'undefined') {
+    if (jwt) {
+      sessionStorage.setItem('ownerToken', jwt);
+    } else {
+      sessionStorage.removeItem('ownerToken');
+    }
+  }
 }
 
 export function getOwnerToken() {
+  if (typeof sessionStorage !== 'undefined' && !ownerToken) {
+    ownerToken = sessionStorage.getItem('ownerToken');
+  }
   return ownerToken;
 }
 
@@ -40,6 +51,9 @@ export function getGuestToken() {
 export function clearTokens() {
   ownerToken = null;
   guestToken = null;
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem('ownerToken');
+  }
 }
 
 function getBaseUrl() {
@@ -65,13 +79,15 @@ export async function apiFetch(path, options = {}) {
   }
 
   // Attach Owner JWT if set
-  if (ownerToken) {
-    headers.set('Authorization', `Bearer ${ownerToken}`);
+  const currentOwnerToken = getOwnerToken();
+  if (currentOwnerToken) {
+    headers.set('Authorization', `Bearer ${currentOwnerToken}`);
   }
 
   // Attach Guest Token if set
-  if (guestToken) {
-    headers.set('X-Guest-Token', guestToken);
+  const currentGuestToken = getGuestToken();
+  if (currentGuestToken) {
+    headers.set('X-Guest-Token', currentGuestToken);
   }
 
   const config = {
@@ -87,13 +103,15 @@ export async function apiFetch(path, options = {}) {
   }
 
   let data = null;
-  const contentType = response.headers ? response.headers.get('content-type') : '';
-  if (contentType && contentType.includes('application/json')) {
+  const contentType = response.headers ? (response.headers.get('content-type') || '') : '';
+  if (contentType.includes('application/json')) {
     try {
       data = await response.json();
     } catch (e) {
       data = null;
     }
+  } else if (contentType.includes('text/html')) {
+    throw new ApiError('Backend server not reachable or endpoint returned HTML', response.status || 404, null);
   } else {
     try {
       const text = await response.text();
