@@ -24,7 +24,9 @@ import {
   CreditCard,
   ChevronRight,
   MapPin,
-  Key
+  Key,
+  ShieldAlert,
+  Bot
 } from 'lucide-react';
 
 export default function OwnerApp() {
@@ -283,8 +285,8 @@ export default function OwnerApp() {
       {/* Main Layout Container (FLUSH LEFT SIDEBAR + CONTENT AREA) */}
       <div className="w-full flex flex-col lg:flex-row min-h-[calc(100vh-57px)]">
         
-        {/* FLUSH LIGHT SIDEBAR (Desktop View: Fixed ~240px width, starts flush at left edge) */}
-        <aside className="w-full lg:w-[240px] shrink-0 bg-white dark:bg-[#0c1813] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-emerald-900/30 p-2 lg:py-4 lg:px-2 transition-colors">
+        {/* FLUSH LIGHT SIDEBAR (Desktop View: Fixed ~260px width, larger text size) */}
+        <aside className="w-full lg:w-[260px] shrink-0 bg-white dark:bg-[#0c1813] border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-emerald-900/30 p-2 lg:py-5 lg:px-3 transition-colors">
           <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible gap-1 pb-1 lg:pb-0 scrollbar-none">
             {navItems.map((item) => {
               const ItemIcon = item.Icon;
@@ -296,21 +298,21 @@ export default function OwnerApp() {
                     setActiveTab(item.id);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                  className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-sm sm:text-base font-semibold transition-all whitespace-nowrap cursor-pointer ${
                     isActive
-                      ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border-r-2 lg:border-r-3 border-emerald-600 dark:border-emerald-400'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border-r-3 border-emerald-600 dark:border-emerald-400 shadow-2xs'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
                   }`}
                 >
                   <ItemIcon
-                    className={`w-4 h-4 shrink-0 ${
+                    className={`w-5 h-5 shrink-0 ${
                       isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
                     }`}
                     aria-hidden="true"
                   />
-                  <span className="flex-1 text-left">{item.label}</span>
+                  <span className="flex-1 text-left text-sm sm:text-base font-semibold">{item.label}</span>
                   {item.badge && (
-                    <span className="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-500 text-white shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-extrabold bg-amber-500 text-white shrink-0">
                       {item.badge}
                     </span>
                   )}
@@ -321,156 +323,243 @@ export default function OwnerApp() {
         </aside>
 
         {/* MAIN CONTENT AREA */}
-        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 max-w-5xl">
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
           
           {/* TAB 1: DASHBOARD OVERVIEW */}
           {activeTab === 'tabDashboard' && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               
-              {/* 1. Simple Page Heading (Replaces large greeting card) */}
-              <div className="border-b border-slate-200/80 dark:border-emerald-900/40 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-                    Dashboard
-                  </h1>
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 font-medium flex items-center gap-1.5">
-                    <span>Mountain View Homestay</span>
-                    <span>•</span>
-                    <MapPin className="w-3.5 h-3.5 text-amberGold shrink-0" aria-hidden="true" />
-                    <span>Darjeeling</span>
-                    <span>•</span>
-                    <span>{formattedDate}</span>
-                  </p>
-                </div>
+              {/* Main 2-Column Desktop Layout Grid (Left: 70%, Right: 30%) */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                
+                {/* Left Column (Main Dashboard Sections & Compact Stat Cards) */}
+                <div className="lg:col-span-2 space-y-5">
+                  
+                  {/* Compact Overview Stats Cards Grid (4-col on sm) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                    {/* Active Guests */}
+                    <div className="bg-white dark:bg-[#0f1d17] p-2.5 sm:p-3 rounded-lg border border-slate-200/80 dark:border-emerald-900/40">
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-0.5">
+                        <span className="text-[11px] font-semibold">Active Guests</span>
+                        <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                      </div>
+                      <p className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">5</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">In 3 rooms</p>
+                    </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200/60 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>4 Rooms • Active</span>
-                  </span>
-                </div>
-              </div>
+                    {/* Today's Bookings */}
+                    <div className="bg-white dark:bg-[#0f1d17] p-2.5 sm:p-3 rounded-lg border border-slate-200/80 dark:border-emerald-900/40">
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-0.5">
+                        <span className="text-[11px] font-semibold">Today's Bookings</span>
+                        <Calendar className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                      </div>
+                      <p className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">2</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Check-ins today</p>
+                    </div>
 
-              {/* 2. Compact Overview Stats Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {/* Active Guests */}
-                <div className="bg-white dark:bg-[#0f1d17] p-3.5 sm:p-4 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
-                    <span className="text-xs font-semibold">Active Guests</span>
-                    <Users className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                    {/* Today's Revenue */}
+                    <div className="bg-white dark:bg-[#0f1d17] p-2.5 sm:p-3 rounded-lg border border-slate-200/80 dark:border-emerald-900/40">
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-0.5">
+                        <span className="text-[11px] font-semibold">Today's Revenue</span>
+                        <IndianRupee className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                      </div>
+                      <p className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">₹4,800</p>
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">↑ 12% vs yesterday</p>
+                    </div>
+
+                    {/* Pending Tasks */}
+                    <div className="bg-white dark:bg-[#0f1d17] p-2.5 sm:p-3 rounded-lg border border-slate-200/80 dark:border-emerald-900/40">
+                      <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-0.5">
+                        <span className="text-[11px] font-semibold">Pending Tasks</span>
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                      </div>
+                      <p className="text-xl font-bold text-amber-600 dark:text-amber-400 tracking-tight">3</p>
+                      <p className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">Requires attention</p>
+                    </div>
                   </div>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">5</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">In 3 active rooms</p>
-                </div>
 
-                {/* Today's Bookings */}
-                <div className="bg-white dark:bg-[#0f1d17] p-3.5 sm:p-4 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
-                    <span className="text-xs font-semibold">Today's Bookings</span>
-                    <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                  {/* AI Daily Brief Section */}
+                  <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-emerald-900/30">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-white">AI Daily Brief</h2>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-medium">Updated 8m ago</span>
+                    </div>
+
+                    <ul className="space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium mb-4">
+                      <li className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-2" />
+                        <span><strong>2 guests</strong> are checking in today (Rahul & Ananya).</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
+                        <span><strong>1 room</strong> (Room 201) will become available tomorrow.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-2" />
+                        <span>You have <strong>3 pending guest requests</strong> waiting for response.</span>
+                      </li>
+                    </ul>
+
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => setActiveTab('tabRequests')}
+                        className="px-3.5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors cursor-pointer min-h-[44px] flex items-center gap-1"
+                      >
+                        <span>View Requests</span>
+                        <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">2</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">2 check-ins expected</p>
-                </div>
 
-                {/* Today's Revenue */}
-                <div className="bg-white dark:bg-[#0f1d17] p-3.5 sm:p-4 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
-                    <span className="text-xs font-semibold">Today's Revenue</span>
-                    <IndianRupee className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                  </div>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">₹4,800</p>
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">↑ 12% vs yesterday</p>
-                </div>
+                  {/* Recent Activity Section */}
+                  <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-emerald-900/30">
+                      <h2 className="text-sm font-bold text-slate-900 dark:text-white">Recent Activity</h2>
+                      <span className="text-[11px] text-slate-400 font-medium">Today</span>
+                    </div>
 
-                {/* Pending Tasks */}
-                <div className="bg-white dark:bg-[#0f1d17] p-3.5 sm:p-4 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
-                    <span className="text-xs font-semibold">Pending Tasks</span>
-                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-                  </div>
-                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 tracking-tight">3</p>
-                  <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5 font-medium">Requires attention</p>
-                </div>
-              </div>
+                    <div className="divide-y divide-slate-100 dark:divide-emerald-900/20">
+                      <div className="py-2.5 flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
+                          <div className="min-w-0">
+                            <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">Rahul checked in</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Room 203 • Checked in at 10:30 AM</p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium shrink-0">25m ago</span>
+                      </div>
 
-              {/* 3. AI Daily Brief Section (Simple content section, no large gradient cards) */}
-              <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
-                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-emerald-900/30">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-white">AI Daily Brief</h2>
-                  </div>
-                  <span className="text-[11px] text-slate-400 font-medium">Updated 8m ago</span>
-                </div>
+                      <div className="py-2.5 flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <Bell className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+                          <div className="min-w-0">
+                            <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">New request: Extra blanket</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Guest in Room 101 requested 1 extra blanket</p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium shrink-0">1h ago</span>
+                      </div>
 
-                <ul className="space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300 font-medium mb-4">
-                  <li className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-2" />
-                    <span><strong>2 guests</strong> are checking in today (Rahul & Ananya).</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
-                    <span><strong>1 room</strong> (Room 201) will become available tomorrow.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 mt-2" />
-                    <span>You have <strong>3 pending guest requests</strong> waiting for response.</span>
-                  </li>
-                </ul>
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => setActiveTab('tabRequests')}
-                    className="px-3.5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors cursor-pointer min-h-[44px] flex items-center gap-1"
-                  >
-                    <span>View Requests</span>
-                    <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-
-              {/* 4. Recent Activity Section (Simple list with subtle dividers) */}
-              <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
-                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-emerald-900/30">
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">Recent Activity</h2>
-                  <span className="text-[11px] text-slate-400 font-medium">Today</span>
-                </div>
-
-                <div className="divide-y divide-slate-100 dark:divide-emerald-900/20">
-                  <div className="py-2.5 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">Rahul checked in</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Room 203 • Checked in at 10:30 AM</p>
+                      <div className="py-2.5 flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <CreditCard className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" aria-hidden="true" />
+                          <div className="min-w-0">
+                            <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">Payment received ₹4,800</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">UPI payment confirmed for Booking #HB-104</p>
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium shrink-0">2h ago</span>
                       </div>
                     </div>
-                    <span className="text-[11px] text-slate-400 font-medium shrink-0">25m ago</span>
                   </div>
 
-                  <div className="py-2.5 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <Bell className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">New request: Extra blanket</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Guest in Room 101 requested 1 extra blanket</p>
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-400 font-medium shrink-0">1h ago</span>
-                  </div>
-
-                  <div className="py-2.5 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <CreditCard className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">Payment received ₹4,800</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">UPI payment confirmed for Booking #HB-104</p>
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-slate-400 font-medium shrink-0">2h ago</span>
-                  </div>
                 </div>
+
+                {/* Right Column: Assistance Panel Widget Column */}
+                <div className="space-y-4">
+                  
+                  {/* CARD 1: AI Guest Assistant */}
+                  <div className="bg-[#f0f7f4] dark:bg-[#0c1f19] p-4 sm:p-5 rounded-3xl border border-emerald-100 dark:border-emerald-900/50 shadow-2xs">
+                    {/* Header */}
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-9 h-9 rounded-2xl bg-emerald-100 dark:bg-emerald-900/80 flex items-center justify-center text-emerald-800 dark:text-emerald-300 shrink-0 shadow-2xs">
+                        <Bot className="w-5 h-5" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-snug">AI Guest Assistant</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">Ask anything about your stay, services or local area.</p>
+                      </div>
+                    </div>
+
+                    {/* Speech Bubble + Mountain Badge */}
+                    <div className="my-3.5 flex items-center gap-2">
+                      <div className="flex-1 bg-white dark:bg-[#07130e] p-3 rounded-2xl text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 shadow-2xs border border-emerald-100/80 dark:border-emerald-900/40 relative">
+                        "Where can I have breakfast?"
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-emerald-100/80 dark:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-700/50 flex items-center justify-center shrink-0 text-emerald-800 dark:text-emerald-300 text-base shadow-2xs">
+                        🏔️
+                      </div>
+                    </div>
+
+                    {/* Suggested Questions */}
+                    <div className="mt-3">
+                      <h4 className="text-xs font-bold text-emerald-950 dark:text-emerald-300 mb-2">Suggested Questions</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { label: 'Where can I eat?', icon: '🍳' },
+                          { label: 'What can I visit?', icon: '🏔️' },
+                          { label: 'Check-out time?', icon: '🕒' },
+                          { label: 'Room service', icon: '🛏️' },
+                          { label: 'Nearby places', icon: '📍' },
+                          { label: 'Emergency', icon: '🚨' }
+                        ].map((chip) => (
+                          <button
+                            key={chip.label}
+                            onClick={() => setActiveTab('tabCommunicator')}
+                            className="w-full bg-white dark:bg-[#07130e] hover:bg-emerald-50 dark:hover:bg-emerald-950/80 border border-slate-200/80 dark:border-emerald-900/50 rounded-full px-3 py-2 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer truncate"
+                          >
+                            <span className="shrink-0">{chip.icon}</span>
+                            <span className="truncate">{chip.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CARD 2: Guest Welcome Mode */}
+                  <div className="bg-[#fff8ee] dark:bg-[#1c160c] p-4 sm:p-5 rounded-3xl border border-amber-200/70 dark:border-amber-900/40 shadow-2xs relative overflow-hidden flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1 z-10">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Sparkles className="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" />
+                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight truncate">Guest Welcome Mode</h3>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug">Help your guests feel at home</p>
+
+                      <button
+                        onClick={() => alert('Guest Welcome Mode active. Starting guest check-in & welcome guide.')}
+                        className="mt-3 bg-[#ea8c1e] hover:bg-[#d87d13] text-white text-xs font-bold rounded-full py-2.5 px-4 shadow-sm inline-flex items-center gap-1.5 transition-all cursor-pointer min-h-[40px]"
+                      >
+                        <span>Start Guest Welcome</span>
+                        <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    <div className="w-14 h-14 rounded-2xl bg-amber-100/60 dark:bg-amber-900/40 flex items-center justify-center text-2xl shrink-0 border border-amber-200/50 dark:border-amber-700/30">
+                      🏡
+                    </div>
+                  </div>
+
+                  {/* CARD 3: Emergency Mode */}
+                  <div className="bg-[#fff0f3] dark:bg-[#200d11] p-4 sm:p-5 rounded-3xl border border-rose-200/70 dark:border-rose-900/40 shadow-2xs relative overflow-hidden flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1 z-10">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                          !
+                        </div>
+                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight truncate">Emergency Mode</h3>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-snug">Quick access to help and essential phrases</p>
+
+                      <button
+                        onClick={() => alert('Emergency Assistance: Local Police (112), Medical Emergency (102), Local Clinic (+91 98320 00000).')}
+                        className="mt-3 bg-[#ef475d] hover:bg-[#db3349] text-white text-xs font-bold rounded-full py-2.5 px-4 shadow-sm inline-flex items-center gap-1.5 transition-all cursor-pointer min-h-[40px]"
+                      >
+                        <span>Open Emergency Assistance</span>
+                        <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+
+                    <div className="w-14 h-14 rounded-2xl bg-rose-100/60 dark:bg-rose-900/40 flex items-center justify-center text-2xl shrink-0 border border-rose-200/50 dark:border-rose-700/30">
+                      🚨
+                    </div>
+                  </div>
+
+                </div>
+
               </div>
 
             </div>
