@@ -36,6 +36,7 @@ import {
 export default function OwnerApp() {
   const [activeTab, setActiveTab] = useState('tabDashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [drawerAnimatingOut, setDrawerAnimatingOut] = useState(false);
   const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
   const [deferredPrompt, setDeferredPrompt] = useState(typeof window !== 'undefined' ? window.deferredPrompt || null : null);
   const [theme, setTheme] = useState(() => {
@@ -58,6 +59,23 @@ export default function OwnerApp() {
     );
   });
   const [showInstallNotice, setShowInstallNotice] = useState(false);
+
+  // Smooth drawer animation handlers
+  const openDrawer = () => {
+    setMobileMenuOpen(true);
+    setDrawerAnimatingOut(false);
+  };
+
+  const closeDrawer = (callback) => {
+    setDrawerAnimatingOut(true);
+    setTimeout(() => {
+      setMobileMenuOpen(false);
+      setDrawerAnimatingOut(false);
+      if (typeof callback === 'function') {
+        callback();
+      }
+    }, 280);
+  };
 
   // Dedicated AI Assistant Chat state (UI ONLY)
   const [aiInputText, setAiInputText] = useState('');
@@ -255,7 +273,7 @@ export default function OwnerApp() {
   return (
     <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#080f0c] text-slate-800 dark:text-slate-100 selection:bg-emerald-800 selection:text-white transition-colors duration-200 overflow-x-hidden">
       {/* Top Header / Branding */}
-      <header className="bg-gradient-to-r from-forest-900 to-forest-800 dark:from-[#07130e] dark:via-[#0b1e16] dark:to-[#0f261c] text-white px-4 py-3 sticky top-0 z-50 shadow-sm border-b border-transparent dark:border-emerald-900/30 backdrop-blur-md transition-colors duration-200">
+      <header className="bg-gradient-to-r from-forest-900 to-forest-800 dark:from-[#07130e] dark:via-[#0b1e16] dark:to-[#0f261c] text-white px-4 py-3 sticky top-0 z-40 shadow-sm border-b border-transparent dark:border-emerald-900/30 backdrop-blur-md transition-colors duration-200">
         <div className="w-full flex justify-between items-center gap-2 px-0 sm:px-2">
           <div className="flex items-center gap-3 min-w-0">
             <img
@@ -325,60 +343,99 @@ export default function OwnerApp() {
             )}
           </div>
 
-          {/* Mobile Hamburger Button (>=44x44px) */}
+          {/* Mobile Simple Hamburger Icon (Clean 3-line icon only) */}
           <div className="lg:hidden flex items-center shrink-0">
             <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle Mobile Navigation Menu"
-              className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:bg-white/30 text-white min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer border border-white/20 transition-colors"
+              onClick={openDrawer}
+              aria-label="Open Navigation Menu"
+              className="w-[44px] h-[44px] flex items-center justify-center text-white hover:text-emerald-200 active:scale-95 transition-all cursor-pointer"
             >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6 text-white" aria-hidden="true" />
-              ) : (
-                <Menu className="w-6 h-6 text-white" aria-hidden="true" />
-              )}
+              <Menu className="w-6 h-6 text-white" aria-hidden="true" />
             </button>
           </div>
         </div>
-
-        {/* Mobile Dropdown Navigation Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden bg-white dark:bg-[#0c1813] border-b border-slate-200 dark:border-emerald-900/40 p-3 shadow-2xl animate-fadeIn space-y-1">
-            {navItems.map((item) => {
-              const ItemIcon = item.Icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setMobileMenuOpen(false);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-base font-semibold transition-all cursor-pointer min-h-[48px] ${
-                    isActive
-                      ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border-l-4 border-emerald-600 dark:border-emerald-400'
-                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
-                  }`}
-                >
-                  <ItemIcon
-                    className={`w-5 h-5 shrink-0 ${
-                      isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <span className="flex-1 text-left">{item.label}</span>
-                  {item.badge && (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-500 text-white shrink-0">
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </header>
+
+      {/* Mobile Left-Side Lightweight Drawer Navigation Overlay */}
+      {mobileMenuOpen && (
+        <>
+          {/* Clean ~18% Black Overlay Backdrop (No Blur, No Green Tint) */}
+          <div
+            onClick={() => closeDrawer()}
+            className={`lg:hidden fixed inset-0 bg-black/20 z-40 transition-opacity duration-300 ease-out ${
+              drawerAnimatingOut ? 'opacity-0' : 'opacity-100'
+            }`}
+            aria-hidden="true"
+          />
+
+          {/* Opaque White Left-Sided Overlay Drawer */}
+          <aside
+            className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[74vw] max-w-[290px] bg-white dark:bg-[#0c1813] border-r border-slate-200/70 dark:border-emerald-900/30 shadow-xl rounded-r-2xl py-4 px-3 flex flex-col justify-between overflow-y-auto transition-transform duration-300 ease-out ${
+              drawerAnimatingOut ? '-translate-x-full' : 'translate-x-0'
+            }`}
+          >
+            <div className="space-y-3">
+              {/* Drawer Header: Logo + Name + ONE thin X close icon */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30 px-1">
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src="./icons/icon-192.png"
+                    alt="Homestay Helper Logo"
+                    className="w-7 h-7 rounded-md border border-amberGold object-contain bg-forest-900"
+                  />
+                  <span className="font-semibold text-sm text-slate-800 dark:text-white tracking-tight">
+                    Homestay Helper
+                  </span>
+                </div>
+                <button
+                  onClick={() => closeDrawer()}
+                  className="w-[44px] h-[44px] -mr-2 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+                  aria-label="Close menu"
+                >
+                  <X className="w-5 h-5 stroke-[1.5]" />
+                </button>
+              </div>
+
+              {/* Compact Natural Navigation Items */}
+              <nav className="space-y-0.5 pt-1">
+                {navItems.map((item) => {
+                  const ItemIcon = item.Icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        closeDrawer(() => {
+                          setActiveTab(item.id);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        });
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer min-h-[46px] ${
+                        isActive
+                          ? 'bg-[#f0f7f3] dark:bg-[#0e241b] text-[#123D2A] dark:text-emerald-300 font-medium border-l-3 border-[#164A34] dark:border-emerald-400'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
+                      }`}
+                    >
+                      <ItemIcon
+                        className={`w-[18px] h-[18px] stroke-[1.5] shrink-0 ${
+                          isActive ? 'text-[#164A34] dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span className="flex-1 text-left font-medium">{item.label}</span>
+                      {item.badge && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white shrink-0">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          </aside>
+        </>
+      )}
 
       {/* Offline Notice Banner */}
       {isOffline && (
@@ -620,8 +677,8 @@ export default function OwnerApp() {
                     </div>
                   </div>
 
-                  {/* CARD 2: Guest Welcome Mode */}
-                  <div className="bg-[#fff8ee] dark:bg-[#1c160c] p-4 sm:p-5 rounded-3xl border border-amber-200/70 dark:border-amber-900/40 shadow-2xs relative overflow-hidden flex items-center justify-between gap-2">
+                  {/* CARD 2: Guest Welcome Mode (HIDDEN ON MOBILE, VISIBLE ON DESKTOP) */}
+                  <div className="hidden lg:flex bg-[#fff8ee] dark:bg-[#1c160c] p-4 sm:p-5 rounded-3xl border border-amber-200/70 dark:border-amber-900/40 shadow-2xs relative overflow-hidden items-center justify-between gap-2">
                     <div className="min-w-0 flex-1 z-10">
                       <div className="flex items-center gap-1.5 mb-1">
                         <Sparkles className="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" />
@@ -647,7 +704,7 @@ export default function OwnerApp() {
                     </div>
                   </div>
 
-                  {/* CARD 3: Emergency Mode */}
+                  {/* CARD 3: Emergency Mode (VISIBLE ON BOTH MOBILE AND DESKTOP) */}
                   <div className="bg-[#fff0f3] dark:bg-[#200d11] p-4 sm:p-5 rounded-3xl border border-rose-200/70 dark:border-rose-900/40 shadow-2xs relative overflow-hidden flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1 z-10">
                       <div className="flex items-center gap-2 mb-1">
@@ -920,18 +977,17 @@ export default function OwnerApp() {
         </main>
       </div>
 
-      {/* Floating AI Assistant Action Button (Shown on mobile Dashboard when activeTab === 'tabDashboard') */}
+      {/* Floating Circular AI Icon Button (Shown ONLY on Mobile Dashboard when activeTab === 'tabDashboard') */}
       {activeTab === 'tabDashboard' && (
         <button
           onClick={() => {
             setActiveTab('tabAiAssistant');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className="lg:hidden fixed bottom-6 right-5 z-40 bg-[#164A34] hover:bg-[#123D2A] text-white px-4 py-3 rounded-full shadow-2xl border-2 border-emerald-400/80 flex items-center gap-2.5 cursor-pointer active:scale-95 font-bold text-sm transition-all"
+          className="lg:hidden fixed bottom-5 right-5 z-40 w-[52px] h-[52px] rounded-full bg-[#164A34] hover:bg-[#123D2A] active:scale-95 text-white shadow-lg border-2 border-emerald-400/70 flex items-center justify-center cursor-pointer transition-all"
           aria-label="Open AI Guest Assistant"
         >
-          <Bot className="w-5 h-5 text-emerald-300 shrink-0" />
-          <span>AI Assistant</span>
+          <Bot className="w-5 h-5 text-emerald-200" />
         </button>
       )}
     </div>
