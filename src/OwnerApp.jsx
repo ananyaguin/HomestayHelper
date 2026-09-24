@@ -12,7 +12,8 @@ import {
   ClipboardCheck,
   Download,
   Sun,
-  Moon
+  Moon,
+  Calendar
 } from 'lucide-react';
 
 export default function OwnerApp() {
@@ -39,6 +40,17 @@ export default function OwnerApp() {
     );
   });
   const [showInstallNotice, setShowInstallNotice] = useState(false);
+
+  // Compute formatted current date & time-based greeting for header
+  const formattedDate = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+
+  const hour = new Date().getHours();
+  const greetingText = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   useEffect(() => {
     const root = document.documentElement;
@@ -284,6 +296,25 @@ export default function OwnerApp() {
 
       {/* Main Content Area */}
       <main className="max-w-5xl mx-auto px-4 py-5">
+        {/* Owner Dashboard Header */}
+        <div className="mb-5 sm:mb-6 p-4 sm:p-5 bg-white dark:bg-[#0f1d17] rounded-2xl border border-slate-200/80 dark:border-emerald-900/40 shadow-sm transition-colors">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight leading-snug">
+                {greetingText}, Host <span className="inline-block">👋</span>
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-emerald-300/80 mt-1 font-medium leading-relaxed">
+                Here's what's happening at your homestay today.
+              </p>
+            </div>
+
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-forest-50 dark:bg-emerald-950/80 border border-forest-100 dark:border-emerald-800/40 text-forest-900 dark:text-emerald-200 text-xs font-semibold self-start sm:self-center shrink-0 shadow-2xs">
+              <Calendar className="w-3.5 h-3.5 text-amberGold shrink-0" aria-hidden="true" />
+              <span>{formattedDate}</span>
+            </div>
+          </div>
+        </div>
+
         {activeTab === 'tabCommunicator' && <GuestCommunicator />}
         {activeTab === 'tabLedger' && <BookingsLedger />}
         {activeTab === 'tabListing' && <ListingPricing />}
