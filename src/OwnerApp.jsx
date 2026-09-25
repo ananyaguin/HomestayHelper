@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { homestayDB } from './services/db';
+import { api } from './services/api';
 import GuestCommunicator from './components/GuestCommunicator';
 import BookingsLedger from './components/BookingsLedger';
 import ListingPricing from './components/ListingPricing';
 import HostReadinessChecklist from './components/HostReadinessChecklist';
+import PropertySetup from './components/PropertySetup';
 import {
   Radio,
   MessageSquare,
@@ -31,7 +33,16 @@ import {
   X,
   Send,
   ArrowLeft,
-  LogOut
+  LogOut,
+  Building,
+  Building2,
+  Mountain,
+  Utensils,
+  Clock,
+  BedDouble,
+  Plus,
+  Pencil,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function OwnerApp({ onLogout }) {
@@ -60,6 +71,103 @@ export default function OwnerApp({ onLogout }) {
     );
   });
   const [showInstallNotice, setShowInstallNotice] = useState(false);
+
+  // Property Onboarding & Multi-Property Management State
+  const [isLoadingPropertyCheck, setIsLoadingPropertyCheck] = useState(true);
+  const [hasProperty, setHasProperty] = useState(false);
+  const [propertiesList, setPropertiesList] = useState([]);
+  const [activePropertyId, setActivePropertyId] = useState(null);
+  const [propertyViewMode, setPropertyViewMode] = useState('list'); // 'list' | 'form'
+  const [editingProperty, setEditingProperty] = useState(null);
+  const [isOnboarding, setIsOnboarding] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkPropertyStatus() {
+      setIsLoadingPropertyCheck(true);
+      try {
+        const response = await api.get('/api/properties');
+        if (isMounted) {
+          if (response && Array.isArray(response.properties) && response.properties.length > 0) {
+            setPropertiesList(response.properties);
+            setHasProperty(true);
+            setActivePropertyId(response.properties[0].id);
+            setIsOnboarding(false);
+            setPropertyViewMode('list');
+          } else {
+            setPropertiesList([]);
+            setHasProperty(false);
+            setActivePropertyId(null);
+            setIsOnboarding(true);
+            setPropertyViewMode('form');
+            setEditingProperty(null);
+            setActiveTab('tabProperty');
+          }
+        }
+      } catch (err) {
+        console.warn('[OwnerApp] Failed to check property status from backend:', err);
+        if (isMounted) {
+          if (propertiesList.length > 0) {
+            setHasProperty(true);
+            setIsOnboarding(false);
+            setPropertyViewMode('list');
+          } else {
+            setHasProperty(false);
+            setIsOnboarding(true);
+            setPropertyViewMode('form');
+            setEditingProperty(null);
+            setActiveTab('tabProperty');
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingPropertyCheck(false);
+        }
+      }
+    }
+    checkPropertyStatus();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handlePropertySaved = (savedProp) => {
+    const propId = savedProp?.id || editingProperty?.id || 'prop_' + Date.now();
+    const normalizedProp = {
+      ...savedProp,
+      id: propId,
+      name: savedProp?.name || savedProp?.propertyName || 'My Homestay',
+      address: savedProp?.address || '',
+      total_rooms: savedProp?.total_rooms || savedProp?.totalRooms || 4
+    };
+
+    setPropertiesList((prev) => {
+      const existsIndex = prev.findIndex((p) => p.id === normalizedProp.id);
+      if (existsIndex >= 0) {
+        const copy = [...prev];
+        copy[existsIndex] = normalizedProp;
+        return copy;
+      }
+      return [...prev, normalizedProp];
+    });
+
+    setActivePropertyId(normalizedProp.id);
+    setHasProperty(true);
+
+    if (isOnboarding) {
+      setIsOnboarding(false);
+      setPropertyViewMode('list');
+      setEditingProperty(null);
+      setActiveTab('tabDashboard');
+    } else {
+      setPropertyViewMode('list');
+      setEditingProperty(null);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const activeProperty = propertiesList.find((p) => p.id === activePropertyId) || propertiesList[0] || null;
+  const activePropertyName = activeProperty ? (activeProperty.name || activeProperty.propertyName || 'My Homestay') : 'Homestay Helper';
 
   // Smooth drawer animation handlers
   const openDrawer = () => {
@@ -262,6 +370,7 @@ export default function OwnerApp({ onLogout }) {
 
   const navItems = [
     { id: 'tabDashboard', label: 'Dashboard', Icon: LayoutDashboard },
+    { id: 'tabProperty', label: 'Property Setup', Icon: Building },
     { id: 'tabCommunicator', label: 'Communicator', Icon: MessageSquare },
     { id: 'tabLedger', label: 'Bookings & Ledger', Icon: BookOpen },
     { id: 'tabListing', label: 'AI Listing', Icon: Sparkles },
@@ -270,6 +379,27 @@ export default function OwnerApp({ onLogout }) {
     { id: 'tabRooms', label: 'Rooms', Icon: Key },
     { id: 'tabSettings', label: 'Settings', Icon: Settings }
   ];
+
+  if (isLoadingPropertyCheck) {
+    return (
+      <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#080f0c] text-slate-800 dark:text-slate-100 flex flex-col items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <img
+            src="./icons/icon-192.png"
+            alt="Homestay Helper Logo"
+            className="w-14 h-14 rounded-2xl border-2 border-amberGold bg-forest-900 shadow-md animate-pulse"
+          />
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Homestay Helper</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              <span>Checking property setup status...</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#080f0c] text-slate-800 dark:text-slate-100 selection:bg-emerald-800 selection:text-white transition-colors duration-200 overflow-x-hidden">
@@ -286,8 +416,10 @@ export default function OwnerApp({ onLogout }) {
               <h1 className="text-base font-bold tracking-tight text-white leading-tight truncate">
                 Homestay Helper
               </h1>
-              <p className="text-xs text-emerald-200 dark:text-emerald-300/90 truncate font-medium">
-                Tea Garden Villages • Darjeeling Hills
+              <p className="text-xs text-emerald-200 dark:text-emerald-300/90 truncate font-medium flex items-center gap-1.5">
+                <span>{activePropertyName}</span>
+                <span>•</span>
+                <span>Darjeeling Hills</span>
               </p>
             </div>
           </div>
@@ -397,42 +529,53 @@ export default function OwnerApp({ onLogout }) {
                 </button>
               </div>
 
-              {/* Compact Natural Navigation Items */}
-              <nav className="space-y-0.5 pt-1">
-                {navItems.map((item) => {
-                  const ItemIcon = item.Icon;
-                  const isActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        closeDrawer(() => {
-                          setActiveTab(item.id);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        });
-                      }}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer min-h-[46px] ${
-                        isActive
-                          ? 'bg-[#f0f7f3] dark:bg-[#0e241b] text-[#123D2A] dark:text-emerald-300 font-medium border-l-3 border-[#164A34] dark:border-emerald-400'
-                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
-                      }`}
-                    >
-                      <ItemIcon
-                        className={`w-[18px] h-[18px] stroke-[1.5] shrink-0 ${
-                          isActive ? 'text-[#164A34] dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
+                {/* Compact Natural Navigation Items */}
+                <nav className="space-y-0.5 pt-1">
+                  {!hasProperty && (
+                    <div className="mb-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-700/50 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span>Complete Property Setup to unlock dashboard.</span>
+                    </div>
+                  )}
+                  {navItems.map((item) => {
+                    const ItemIcon = item.Icon;
+                    const isActive = activeTab === item.id;
+                    const isDisabled = !hasProperty && item.id !== 'tabProperty';
+                    return (
+                      <button
+                        key={item.id}
+                        disabled={isDisabled}
+                        onClick={() => {
+                          if (isDisabled) return;
+                          closeDrawer(() => {
+                            setActiveTab(item.id);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          });
+                        }}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer min-h-[46px] ${
+                          isDisabled
+                            ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-slate-600'
+                            : isActive
+                              ? 'bg-[#f0f7f3] dark:bg-[#0e241b] text-[#123D2A] dark:text-emerald-300 font-medium border-l-3 border-[#164A34] dark:border-emerald-400'
+                              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
                         }`}
-                        aria-hidden="true"
-                      />
-                      <span className="flex-1 text-left font-medium">{item.label}</span>
-                      {item.badge && (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white shrink-0">
-                          {item.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </nav>
+                      >
+                        <ItemIcon
+                          className={`w-[18px] h-[18px] stroke-[1.5] shrink-0 ${
+                            isActive ? 'text-[#164A34] dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <span className="flex-1 text-left font-medium">{item.label}</span>
+                        {item.badge && (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white shrink-0">
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
             </div>
           </aside>
         </>
@@ -450,21 +593,32 @@ export default function OwnerApp({ onLogout }) {
       <div className="w-full flex flex-col lg:flex-row min-h-[calc(100vh-57px)]">
         {/* DESKTOP SIDEBAR ONLY (Hidden on mobile) */}
         <aside className="hidden lg:block w-[260px] shrink-0 bg-white dark:bg-[#0c1813] border-r border-slate-200 dark:border-emerald-900/30 py-5 px-3 transition-colors">
+          {!hasProperty && (
+            <div className="mb-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-700/50 text-amber-900 dark:text-amber-200 text-xs font-semibold leading-relaxed flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <span>First-Time Setup: Please complete Property Setup to unlock the dashboard.</span>
+            </div>
+          )}
           <nav className="flex flex-col gap-1">
             {navItems.map((item) => {
               const ItemIcon = item.Icon;
               const isActive = activeTab === item.id;
+              const isDisabled = !hasProperty && item.id !== 'tabProperty';
               return (
                 <button
                   key={item.id}
+                  disabled={isDisabled}
                   onClick={() => {
+                    if (isDisabled) return;
                     setActiveTab(item.id);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-base font-semibold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border-r-3 border-emerald-600 dark:border-emerald-400 shadow-2xs'
-                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
+                    isDisabled
+                      ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-slate-600'
+                      : isActive
+                        ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border-r-3 border-emerald-600 dark:border-emerald-400 shadow-2xs'
+                        : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
                   }`}
                 >
                   <ItemIcon
@@ -646,7 +800,7 @@ export default function OwnerApp({ onLogout }) {
                         "Where can I have breakfast?"
                       </div>
                       <div className="w-10 h-10 rounded-full bg-emerald-100/80 dark:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-700/50 flex items-center justify-center shrink-0 text-emerald-800 dark:text-emerald-300 text-base shadow-2xs">
-                        🏔️
+                        <Mountain className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
                       </div>
                     </div>
 
@@ -655,25 +809,28 @@ export default function OwnerApp({ onLogout }) {
                       <h4 className="text-xs font-bold text-emerald-950 dark:text-emerald-300 mb-2">Suggested Questions</h4>
                       <div className="grid grid-cols-2 gap-2">
                         {[
-                          { label: 'Where can I eat?', icon: '🍳' },
-                          { label: 'What can I visit?', icon: '🏔️' },
-                          { label: 'Check-out time?', icon: '🕒' },
-                          { label: 'Room service', icon: '🛏️' },
-                          { label: 'Nearby places', icon: '📍' },
-                          { label: 'Emergency', icon: '🚨' }
-                        ].map((chip) => (
-                          <button
-                            key={chip.label}
-                            onClick={() => {
-                              setActiveTab('tabAiAssistant');
-                              handleSendAiMessage(chip.label);
-                            }}
-                            className="w-full bg-white dark:bg-[#07130e] hover:bg-emerald-50 dark:hover:bg-emerald-950/80 border border-slate-200/80 dark:border-emerald-900/50 rounded-full px-3 py-2 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer truncate"
-                          >
-                            <span className="shrink-0">{chip.icon}</span>
-                            <span className="truncate">{chip.label}</span>
-                          </button>
-                        ))}
+                          { label: 'Where can I eat?', Icon: Utensils },
+                          { label: 'What can I visit?', Icon: Mountain },
+                          { label: 'Check-out time?', Icon: Clock },
+                          { label: 'Room service', Icon: BedDouble },
+                          { label: 'Nearby places', Icon: MapPin },
+                          { label: 'Emergency', Icon: ShieldAlert }
+                        ].map((chip) => {
+                          const ChipIcon = chip.Icon;
+                          return (
+                            <button
+                              key={chip.label}
+                              onClick={() => {
+                                setActiveTab('tabAiAssistant');
+                                handleSendAiMessage(chip.label);
+                              }}
+                              className="w-full bg-white dark:bg-[#07130e] hover:bg-emerald-50 dark:hover:bg-emerald-950/80 border border-slate-200/80 dark:border-emerald-900/50 rounded-full px-3 py-2 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-1.5 transition-all cursor-pointer truncate"
+                            >
+                              <ChipIcon className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                              <span className="truncate">{chip.label}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -700,8 +857,8 @@ export default function OwnerApp({ onLogout }) {
                       </button>
                     </div>
 
-                    <div className="w-14 h-14 rounded-2xl bg-amber-100/60 dark:bg-amber-900/40 flex items-center justify-center text-2xl shrink-0 border border-amber-200/50 dark:border-amber-700/30">
-                      🏡
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100/60 dark:bg-amber-900/40 flex items-center justify-center text-amber-700 dark:text-amber-300 shrink-0 border border-amber-200/50 dark:border-amber-700/30">
+                      <Building2 className="w-6 h-6" />
                     </div>
                   </div>
 
@@ -733,8 +890,8 @@ export default function OwnerApp({ onLogout }) {
                       </button>
                     </div>
 
-                    <div className="w-14 h-14 rounded-2xl bg-rose-100/60 dark:bg-rose-900/40 flex items-center justify-center text-2xl shrink-0 border border-rose-200/50 dark:border-rose-700/30">
-                      🚨
+                    <div className="w-12 h-12 rounded-2xl bg-rose-100/60 dark:bg-rose-900/40 flex items-center justify-center text-rose-700 dark:text-rose-300 shrink-0 border border-rose-200/50 dark:border-rose-700/30">
+                      <ShieldAlert className="w-6 h-6" />
                     </div>
                   </div>
                 </div>
@@ -837,6 +994,132 @@ export default function OwnerApp({ onLogout }) {
                   </button>
                 </form>
               </div>
+            </div>
+          )}
+
+          {/* TAB 1.5: PROPERTY SETUP & MANAGEMENT */}
+          {activeTab === 'tabProperty' && (
+            <div>
+              {propertyViewMode === 'form' ? (
+                <PropertySetup
+                  onSaveSuccess={handlePropertySaved}
+                  existingProperty={editingProperty}
+                  isOnboarding={isOnboarding}
+                  onCancel={
+                    !isOnboarding && propertiesList.length > 0
+                      ? () => {
+                          setEditingProperty(null);
+                          setPropertyViewMode('list');
+                        }
+                      : null
+                  }
+                />
+              ) : (
+                <div className="space-y-6 max-w-4xl mx-auto">
+                  {/* Management Header */}
+                  <div className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-emerald-900/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-800 dark:text-emerald-300 shrink-0">
+                        <Building2 className="w-5 h-5" aria-hidden="true" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                          Property Setup
+                        </h2>
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                          Manage your homestay properties, edit details, or add a new property listing.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Property Cards Grid */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {propertiesList.map((prop) => {
+                        const isActive = prop.id === activePropertyId;
+                        const roomCount = prop.total_rooms || prop.totalRooms || 4;
+                        return (
+                          <div
+                            key={prop.id}
+                            onClick={() => setActivePropertyId(prop.id)}
+                            className={`p-5 rounded-2xl transition-all cursor-pointer relative flex flex-col justify-between group ${
+                              isActive
+                                ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-2 border-emerald-600 dark:border-emerald-400 shadow-sm'
+                                : 'bg-white dark:bg-[#0f1d17] border border-slate-200/80 dark:border-emerald-900/40 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-xs'
+                            }`}
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className="font-extrabold text-slate-900 dark:text-white text-base sm:text-lg leading-tight truncate flex-1">
+                                  {prop.name || prop.propertyName || 'Homestay Property'}
+                                </h3>
+                                {isActive && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 shrink-0">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    Active
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                                {prop.address || 'Takdah, Darjeeling Hills'}
+                              </p>
+
+                              <div className="pt-1 flex items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-emerald-950 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+                                  <BedDouble className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  {roomCount} Rooms
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-emerald-900/30 flex items-center justify-between">
+                              <span className="text-[11px] text-slate-400 font-medium">
+                                {isActive ? 'Currently Active' : 'Click to select'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingProperty(prop);
+                                  setPropertyViewMode('form');
+                                }}
+                                title="Edit property details"
+                                aria-label="Edit Property"
+                                className="p-2 rounded-lg text-slate-500 hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center"
+                              >
+                                <Pencil className="w-4 h-4 stroke-[2]" aria-hidden="true" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* "+ Add New Property" Card */}
+                      <div
+                        onClick={() => {
+                          setEditingProperty(null);
+                          setPropertyViewMode('form');
+                        }}
+                        className="p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-emerald-800/60 hover:border-emerald-600 dark:hover:border-emerald-400 bg-slate-50/50 dark:bg-[#07130e]/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 min-h-[160px] group"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-700 dark:text-emerald-300 group-hover:scale-110 transition-transform">
+                          <Plus className="w-5 h-5 stroke-[2.5]" aria-hidden="true" />
+                        </div>
+                        <div>
+                          <p className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">
+                            + Add New Property
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                            Add another homestay
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -985,15 +1268,6 @@ export default function OwnerApp({ onLogout }) {
                   </button>
                 </div>
 
-                <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30 flex justify-between items-center">
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">Homestay Name</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Mountain View Homestay</p>
-                  </div>
-                  <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium cursor-pointer">
-                    Edit Profile
-                  </span>
-                </div>
               </div>
             </div>
           )}
