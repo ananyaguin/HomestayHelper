@@ -40,6 +40,19 @@ function formatBooking(row) {
   const checkOutIso = row.check_out instanceof Date ? row.check_out.toISOString() : String(row.check_out || '');
   const status = computeBookingStatus(checkInIso, checkOutIso, row.db_status || row.status);
 
+  let nights = 1;
+  const d1 = new Date(checkInStr);
+  const d2 = new Date(checkOutStr);
+  if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+    const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+    nights = Math.max(1, diffDays);
+  }
+
+  const roomPrice = row.room_price !== undefined && row.room_price !== null
+    ? parseFloat(row.room_price) || 0
+    : 0;
+  const totalAmount = (nights * roomPrice).toFixed(2);
+
   return {
     id: row.id,
     room_id: row.room_id,
@@ -52,7 +65,6 @@ function formatBooking(row) {
     check_out_date: checkOutIso,
     status,
     created_at: row.created_at,
-    guests: Array.isArray(row.guests) ? row.guests : [],
     ...(row.room_name ? { room_name: row.room_name } : {}),
     ...(row.property_id ? { property_id: row.property_id } : {}),
     ...(row.property_name ? { property_name: row.property_name } : {})
@@ -110,6 +122,7 @@ async function getBookings(ownerId) {
       b.status AS db_status,
       b.created_at,
       r.name AS room_name,
+      r.price AS room_price,
       p.id AS property_id,
       p.name AS property_name,
       COALESCE(
@@ -155,7 +168,7 @@ async function createBooking(ownerId, data) {
   }
 
   const roomCheckSql = `
-    SELECT r.id, r.property_id
+    SELECT r.id, r.property_id, r.price
     FROM rooms r
     JOIN properties p ON r.property_id = p.id
     WHERE r.id = $1 AND p.owner_id = $2
@@ -167,7 +180,114 @@ async function createBooking(ownerId, data) {
     throw err;
   }
 
-  return createGuestBooking(roomId, data);
+  // 2. Validate guest name
+  const guestName = typeof (data.guest_name || data.guestName) === 'string'
+    ? (data.guest_name || data.guestName).trim()
+    : '';
+  if (!guestName) {
+    const err = new Error('Guest name is required');
+    err.status = 400;
+    throw err;
+  }
+  if (guestName.length > 255) {
+    const err = new Error('Guest name must not exceed 255 characters');
+    err.status = 400;
+    throw err;
+  }
+
+  // 3. Validate guest phone
+  const guestPhone = typeof (data.guest_phone || data.guestPhone) === 'string'
+    ? (data.guest_phone || data.guestPhone).trim()
+    : '';
+  if (!guestPhone) {
+    const err = new Error('Guest phone is required');
+    err.status = 400;
+    throw err;
+  }
+  if (guestPhone.length > 50) {
+    const err = new Error('Guest phone must not exceed 50 characters');
+    err.status = 400;
+    throw err;
+  }
+
+  // 4. Validate check_in and check_out dates
+  const rawCheckIn = data.check_in || data.checkIn || data.check_in_date || data.checkInDate;
+  const rawCheckOut = data.check_out || data.checkOut || data.check_out_date || data.checkOutDate;
+
+  if (!rawCheckIn || !isValidDate(rawCheckIn)) {
+    const err = new Error('Valid check_in date is required (YYYY-MM-DD)');
+    err.status = 400;
+    throw err;
+  }
+  if (!rawCheckOut || !isValidDate(rawCheckOut)) {
+    const err = new Error('Valid check_out date is required (YYYY-MM-DD)');
+    err.status = 400;
+    throw err;
+  }
+
+  const checkIn = normalizeDate(rawCheckIn);
+  const checkOut = normalizeDate(rawCheckOut);
+
+  if (checkOut < checkIn) {
+    const err = new Error('Check-out date must be on or after check-in date');
+    err.status = 400;
+    throw err;
+  }
+
+  // 5. Database transaction for atomic booking + guest creation
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Create booking strictly with status 'upcoming'
+    const insertBookingSql = `
+      INSERT INTO bookings (room_id, guest_name, guest_phone, check_in, check_out, status)
+      VALUES ($1, $2, $3, $4, $5, 'upcoming')
+      RETURNING id, room_id, guest_name, guest_phone, check_in::text AS check_in, check_out::text AS check_out, status, created_at
+    `;
+    const bookingRes = await client.query(insertBookingSql, [
+      roomId,
+      guestName,
+      guestPhone,
+      checkIn,
+      checkOut
+    ]);
+    const booking = bookingRes.rows[0];
+
+    // Create associated guest row
+    const guestEmail = typeof (data.email || data.guest_email || data.guestEmail) === 'string'
+      ? (data.email || data.guest_email || data.guestEmail).trim() || null
+      : null;
+    const languagePref = typeof (data.language_pref || data.languagePref) === 'string'
+      ? (data.language_pref || data.languagePref).trim() || null
+      : null;
+
+    const insertGuestSql = `
+      INSERT INTO guests (booking_id, name, phone, email, language_pref)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, booking_id, name, phone, email, language_pref, created_at
+    `;
+    const guestRes = await client.query(insertGuestSql, [
+      booking.id,
+      guestName,
+      guestPhone,
+      guestEmail,
+      languagePref
+    ]);
+    const guest = guestRes.rows[0];
+
+    await client.query('COMMIT');
+
+    return {
+      booking: formatBooking(booking),
+      guest
+    };
+  } catch (txErr) {
+    await client.query('ROLLBACK');
+    throw txErr;
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -361,7 +481,7 @@ async function createGuestBooking(roomId, data) {
 
   // 1. Verify room exists and resolve property
   const roomCheckSql = `
-    SELECT r.id, r.capacity, r.property_id, p.owner_id, p.name AS property_name
+    SELECT r.id, r.property_id, p.owner_id, p.name AS property_name
     FROM rooms r
     JOIN properties p ON r.property_id = p.id
     WHERE r.id = $1
@@ -446,10 +566,7 @@ async function createGuestBooking(roomId, data) {
     ];
   }
 
-  // Ensure total_guests matches or updated
-  const finalTotalGuests = Math.max(totalGuests, inputGuests.length);
-
-  // 7. Database transaction
+  // 5. Database transaction for atomic booking + guest creation
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -508,7 +625,7 @@ async function createGuestBooking(roomId, data) {
       tokenHash,
       checkOutIso
     ]);
-    const guestToken = tokenRes.rows[0];
+    const guest = guestRes.rows[0];
 
     await client.query('COMMIT');
 
@@ -517,6 +634,7 @@ async function createGuestBooking(roomId, data) {
       guests: createdGuests
     });
 
+    booking.room_price = roomPrice;
     return {
       success: true,
       message: 'Booking submitted successfully',

@@ -11,6 +11,8 @@ function formatLedgerEntry(row) {
     ? row.amount.toFixed(2)
     : (parseFloat(row.amount) || 0).toFixed(2);
 
+  const pm = row.payment_method ? String(row.payment_method).toLowerCase() : (row.type === 'payment' ? 'upi' : null);
+
   return {
     id: row.id,
     booking_id: row.booking_id,
@@ -19,6 +21,8 @@ function formatLedgerEntry(row) {
     currency: row.currency || 'INR',
     description: row.description || row.note || '',
     note: row.note || row.description || '',
+    payment_method: pm,
+    paymentMethod: pm,
     created_at: row.created_at
   };
 }
@@ -65,7 +69,7 @@ async function verifyBookingOwnership(ownerId, bookingId) {
  *
  * @param {string} ownerId - Authenticated owner ID from JWT
  * @param {string} bookingId - Target booking UUID
- * @param {object} data - { type, amount, description/note, currency }
+ * @param {object} data - { type, amount, description/note, currency, payment_method }
  */
 async function createLedgerEntry(ownerId, bookingId, data) {
   // 1. Verify ownership (strictly booking -> room -> property -> owner)
@@ -113,15 +117,20 @@ async function createLedgerEntry(ownerId, bookingId, data) {
     ? data.currency.trim().toUpperCase()
     : 'INR';
 
+  const rawPaymentMethod = data.payment_method || data.paymentMethod;
+  const paymentMethod = typeof rawPaymentMethod === 'string' && rawPaymentMethod.trim().length > 0
+    ? rawPaymentMethod.trim().toLowerCase()
+    : (normalizedType === 'payment' ? 'cash' : null);
+
   // 3. PostgreSQL Transaction (BEGIN ... COMMIT ... ROLLBACK)
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const insertSql = `
-      INSERT INTO ledger_entries (booking_id, type, amount, currency, note, description)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, booking_id, type, amount, currency, note, description, created_at
+      INSERT INTO ledger_entries (booking_id, type, amount, currency, note, description, payment_method)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, booking_id, type, amount, currency, note, description, payment_method, created_at
     `;
     const res = await client.query(insertSql, [
       bookingId,
@@ -129,7 +138,8 @@ async function createLedgerEntry(ownerId, bookingId, data) {
       amountNum,
       currency,
       description,
-      description
+      description,
+      paymentMethod
     ]);
 
     await client.query('COMMIT');
@@ -155,7 +165,7 @@ async function getLedger(ownerId, bookingId) {
 
   // 2. Query all entries for this booking
   const query = `
-    SELECT id, booking_id, type, amount, currency, note, description, created_at
+    SELECT id, booking_id, type, amount, currency, note, description, payment_method, created_at
     FROM ledger_entries
     WHERE booking_id = $1
     ORDER BY created_at ASC, id ASC

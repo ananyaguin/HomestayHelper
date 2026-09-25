@@ -9,6 +9,7 @@ const roomsRouter = require('./routes/rooms');
 const bookingsRouter = require('./routes/bookings');
 const guestRouter = require('./routes/guest');
 const ledgerRouter = require('./routes/ledger');
+const expensesRouter = require('./routes/expenses');
 
 dotenv.config();
 
@@ -27,7 +28,9 @@ app.use('/api/bookings/:id/ledger', ledgerRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/guest', guestRouter);
 app.use('/api/properties/:propertyId/rooms', roomsRouter);
+app.use('/api/properties/:propertyId/expenses', expensesRouter);
 app.use('/api/properties', propertiesRouter);
+app.use('/api/expenses', expensesRouter);
 
 // Health check route
 app.get('/health', (req, res) => {
