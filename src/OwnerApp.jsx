@@ -108,6 +108,7 @@ export default function OwnerApp({ onLogout }) {
         setPropertiesList(response.properties);
         if (response.properties.length > 0) {
           setHasProperty(true);
+          setIsOnboarding(false);
           const storedId = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('activePropertyId') : null;
           const exists = response.properties.some((p) => p.id === storedId);
           let targetActiveId;
@@ -120,11 +121,15 @@ export default function OwnerApp({ onLogout }) {
             }
           }
           setActivePropertyId(targetActiveId);
-          setIsOnboarding(false);
         } else {
+          // Zero properties -> Mandatory onboarding mode
           setPropertiesList([]);
           setHasProperty(false);
           setActivePropertyId(null);
+          setIsOnboarding(true);
+          setPropertyViewMode('form');
+          setEditingProperty(null);
+          setActiveTab('tabProperty');
           if (typeof sessionStorage !== 'undefined') {
             sessionStorage.removeItem('activePropertyId');
           }
@@ -133,6 +138,10 @@ export default function OwnerApp({ onLogout }) {
         setPropertiesList([]);
         setHasProperty(false);
         setActivePropertyId(null);
+        setIsOnboarding(true);
+        setPropertyViewMode('form');
+        setEditingProperty(null);
+        setActiveTab('tabProperty');
         if (typeof sessionStorage !== 'undefined') {
           sessionStorage.removeItem('activePropertyId');
         }
@@ -150,14 +159,32 @@ export default function OwnerApp({ onLogout }) {
   }, [fetchProperties]);
 
   const handlePropertySaved = (savedProp) => {
+    const wasOnboarding = isOnboarding || propertiesList.length === 0;
     if (savedProp && savedProp.id) {
       handleSelectActiveProperty(savedProp.id);
     }
-    fetchProperties();
     setHasProperty(true);
+    setIsOnboarding(false);
     setPropertyViewMode('list');
     setEditingProperty(null);
+    fetchProperties();
+    if (wasOnboarding) {
+      setActiveTab('tabDashboard');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLogout = () => {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('ownerToken');
+      sessionStorage.removeItem('activePropertyId');
+    }
+    setHasProperty(false);
+    setIsOnboarding(false);
+    setPropertiesList([]);
+    setActivePropertyId(null);
+    if (onLogout) onLogout();
+    window.location.href = '/login';
   };
 
   const activeProperty = propertiesList.find((p) => p.id === activePropertyId) || propertiesList[0] || null;
@@ -1289,10 +1316,7 @@ export default function OwnerApp({ onLogout }) {
                     </p>
                   </div>
                   <button
-                    onClick={() => {
-                      if (onLogout) onLogout();
-                      window.location.href = '/login';
-                    }}
+                    onClick={handleLogout}
                     title="Sign Out"
                     aria-label="Sign Out"
                     className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-100/60 dark:hover:bg-rose-950/40 active:scale-95 transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-200/60 dark:border-emerald-900/40"
