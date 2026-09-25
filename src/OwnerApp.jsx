@@ -120,37 +120,10 @@ export default function OwnerApp({ onLogout }) {
   }, [fetchProperties]);
 
   const handlePropertySaved = (savedProp) => {
-    const propId = savedProp?.id || editingProperty?.id || 'prop_' + Date.now();
-    const normalizedProp = {
-      ...savedProp,
-      id: propId,
-      name: savedProp?.name || savedProp?.propertyName || 'My Homestay',
-      address: savedProp?.address || '',
-      total_rooms: savedProp?.total_rooms || savedProp?.totalRooms || 4
-    };
-
-    setPropertiesList((prev) => {
-      const existsIndex = prev.findIndex((p) => p.id === normalizedProp.id);
-      if (existsIndex >= 0) {
-        const copy = [...prev];
-        copy[existsIndex] = normalizedProp;
-        return copy;
-      }
-      return [...prev, normalizedProp];
-    });
-
-    setActivePropertyId(normalizedProp.id);
+    fetchProperties();
     setHasProperty(true);
-
-    if (isOnboarding) {
-      setIsOnboarding(false);
-      setPropertyViewMode('list');
-      setEditingProperty(null);
-      setActiveTab('tabDashboard');
-    } else {
-      setPropertyViewMode('list');
-      setEditingProperty(null);
-    }
+    setPropertyViewMode('list');
+    setEditingProperty(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
