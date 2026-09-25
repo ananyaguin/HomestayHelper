@@ -29,14 +29,13 @@ import {
   X
 } from 'lucide-react';
 
-// Common/Default Amenities shown directly on main screen (6 items)
+// Common/Default Amenities shown directly on main screen (5 items)
 const DEFAULT_AMENITIES = [
   { id: 'wifi', label: 'Wi-Fi', Icon: Wifi },
   { id: 'parking', label: 'Free Parking', Icon: Car },
   { id: 'food', label: 'Home-cooked Meals', Icon: Utensils },
   { id: 'hot_water', label: '24/7 Hot Water', Icon: Droplets },
-  { id: 'power_backup', label: 'Power Backup', Icon: BatteryCharging },
-  { id: 'tea_garden', label: 'Garden / Tea Garden Access', Icon: Trees }
+  { id: 'power_backup', label: 'Power Backup', Icon: BatteryCharging }
 ];
 
 // Additional Amenities available via "+ Add More" Popover/Modal
@@ -247,34 +246,6 @@ export default function PropertySetup({ onSaveSuccess, existingProperty, isOnboa
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Page Header */}
-      <div className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-emerald-900/40 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-800 dark:text-emerald-300 shrink-0">
-              <Building2 className="w-5 h-5" aria-hidden="true" />
-            </div>
-            <div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                {existingProperty ? 'Edit Property Setup' : 'Property Setup'}
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                Configure your homestay details, room capacity, Wi-Fi credentials, amenities, and emergency contacts.
-              </p>
-            </div>
-          </div>
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-emerald-950 text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer self-start sm:self-auto"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Success Notification Banner */}
       {saveSuccess && (
         <div className="bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-700/50 p-4 rounded-xl flex items-start gap-3 text-emerald-900 dark:text-emerald-200 animate-fadeIn">
@@ -299,11 +270,22 @@ export default function PropertySetup({ onSaveSuccess, existingProperty, isOnboa
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         {/* SECTION 1: Basic Property Information */}
         <div className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-emerald-900/40 shadow-xs space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-emerald-900/30">
-            <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Basic Property Information
-            </h3>
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Basic Property Information
+              </h3>
+            </div>
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-3.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-emerald-950 text-slate-700 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -512,7 +494,6 @@ export default function PropertySetup({ onSaveSuccess, existingProperty, isOnboa
               onClick={() => setShowAmenitiesModal(true)}
               className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-emerald-600/40 dark:border-emerald-500/40 hover:border-emerald-600 text-emerald-800 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/40 text-xs sm:text-sm font-bold transition-all cursor-pointer min-h-[44px]"
             >
-              <Plus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>+ Add More</span>
             </button>
           </div>
@@ -650,6 +631,15 @@ export default function PropertySetup({ onSaveSuccess, existingProperty, isOnboa
 
         {/* Form Actions Footer */}
         <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-3 pt-2">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-100 dark:bg-emerald-950 text-slate-700 dark:text-slate-300 text-sm font-bold hover:bg-slate-200 transition-all cursor-pointer min-h-[48px]"
+            >
+              Cancel
+            </button>
+          )}
           <button
             type="submit"
             disabled={isSubmitting}

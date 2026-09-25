@@ -370,13 +370,13 @@ export default function OwnerApp({ onLogout }) {
 
   const navItems = [
     { id: 'tabDashboard', label: 'Dashboard', Icon: LayoutDashboard },
-    { id: 'tabProperty', label: 'Property Setup', Icon: Building },
     { id: 'tabCommunicator', label: 'Communicator', Icon: MessageSquare },
     { id: 'tabLedger', label: 'Bookings & Ledger', Icon: BookOpen },
     { id: 'tabListing', label: 'AI Listing', Icon: Sparkles },
     { id: 'tabChecklist', label: 'Checklist', Icon: ClipboardCheck },
     { id: 'tabRequests', label: 'Requests', Icon: Bell, badge: '3' },
     { id: 'tabRooms', label: 'Rooms', Icon: Key },
+    { id: 'tabProperty', label: 'Property Setup', Icon: Building },
     { id: 'tabSettings', label: 'Settings', Icon: Settings }
   ];
 
@@ -1230,18 +1230,14 @@ export default function OwnerApp({ onLogout }) {
                   </div>
                   <button
                     onClick={toggleTheme}
-                    className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white transition-all shadow-xs cursor-pointer min-h-[44px]"
+                    title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+                    aria-label="Toggle Theme"
+                    className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-emerald-950/70 active:scale-95 transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-200/60 dark:border-emerald-900/40"
                   >
                     {theme === 'dark' ? (
-                      <>
-                        <Sun className="w-4 h-4 text-amber-300" aria-hidden="true" />
-                        <span>Switch to Light</span>
-                      </>
+                      <Sun className="w-5 h-5 text-amber-400" aria-hidden="true" />
                     ) : (
-                      <>
-                        <Moon className="w-4 h-4 text-emerald-200" aria-hidden="true" />
-                        <span>Switch to Dark</span>
-                      </>
+                      <Moon className="w-5 h-5 text-slate-700 dark:text-emerald-300" aria-hidden="true" />
                     )}
                   </button>
                 </div>
@@ -1261,10 +1257,11 @@ export default function OwnerApp({ onLogout }) {
                       if (onLogout) onLogout();
                       window.location.href = '/login';
                     }}
-                    className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-rose-700 hover:bg-rose-800 text-white transition-all shadow-xs cursor-pointer min-h-[44px]"
+                    title="Sign Out"
+                    aria-label="Sign Out"
+                    className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-100/60 dark:hover:bg-rose-950/40 active:scale-95 transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-200/60 dark:border-emerald-900/40"
                   >
-                    <LogOut className="w-4 h-4" />
-                    <span>Sign Out</span>
+                    <LogOut className="w-5 h-5" aria-hidden="true" />
                   </button>
                 </div>
 
