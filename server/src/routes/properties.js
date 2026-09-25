@@ -38,7 +38,7 @@ router.get('/', verifyOwnerJWT, async (req, res) => {
   try {
     const result = await scopedQuery(
       req.ownerId,
-      'SELECT id, owner_id, name, address, wifi_ssid, wifi_password, emergency_contacts, amenities, created_at FROM properties WHERE owner_id = $1 ORDER BY created_at DESC',
+      'SELECT id, owner_id, name, address, description, total_rooms, wifi_ssid, wifi_password, emergency_contacts, amenities, created_at FROM properties WHERE owner_id = $1 ORDER BY created_at DESC',
       [req.ownerId]
     );
 
@@ -76,6 +76,26 @@ router.post('/', verifyOwnerJWT, async (req, res) => {
         return res.status(400).json({ error: 'Address must be a string' });
       }
       address = body.address.trim() || null;
+    }
+
+    // Optional description
+    let description = null;
+    if (body.description !== undefined && body.description !== null) {
+      if (typeof body.description !== 'string') {
+        return res.status(400).json({ error: 'Description must be a string' });
+      }
+      description = body.description.trim() || null;
+    }
+
+    // Optional total_rooms (support total_rooms or totalRooms)
+    let total_rooms = 4;
+    const rawTotalRooms = body.total_rooms !== undefined ? body.total_rooms : body.totalRooms;
+    if (rawTotalRooms !== undefined && rawTotalRooms !== null) {
+      const parsedRooms = parseInt(rawTotalRooms, 10);
+      if (isNaN(parsedRooms) || parsedRooms <= 0) {
+        return res.status(400).json({ error: 'Total rooms must be a positive integer greater than 0' });
+      }
+      total_rooms = parsedRooms;
     }
 
     // Optional wifi_ssid (support wifi_ssid, wifiSsid, or wifi_details.ssid)
@@ -131,12 +151,14 @@ router.post('/', verifyOwnerJWT, async (req, res) => {
         owner_id,
         name,
         address,
+        description,
+        total_rooms,
         wifi_ssid,
         wifi_password,
         emergency_contacts,
         amenities
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
 
@@ -144,6 +166,8 @@ router.post('/', verifyOwnerJWT, async (req, res) => {
       req.ownerId,
       name,
       address,
+      description,
+      total_rooms,
       wifi_ssid,
       wifi_password,
       serializedContacts,
@@ -199,6 +223,24 @@ router.patch('/:id', verifyOwnerJWT, async (req, res) => {
       }
       values.push(body.address ? body.address.trim() : null);
       setClauses.push(`address = $${values.length + 2}`);
+    }
+
+    if (body.description !== undefined) {
+      if (body.description !== null && typeof body.description !== 'string') {
+        return res.status(400).json({ error: 'Description must be a string or null' });
+      }
+      values.push(body.description ? body.description.trim() : null);
+      setClauses.push(`description = $${values.length + 2}`);
+    }
+
+    const rawTotalRooms = body.total_rooms !== undefined ? body.total_rooms : body.totalRooms;
+    if (rawTotalRooms !== undefined) {
+      const parsedRooms = parseInt(rawTotalRooms, 10);
+      if (isNaN(parsedRooms) || parsedRooms <= 0) {
+        return res.status(400).json({ error: 'Total rooms must be a positive integer greater than 0' });
+      }
+      values.push(parsedRooms);
+      setClauses.push(`total_rooms = $${values.length + 2}`);
     }
 
     const rawWifiSsid = body.wifi_ssid !== undefined
