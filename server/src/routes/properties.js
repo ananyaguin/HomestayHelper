@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyOwnerJWT, scopedQuery } = require('../middleware/auth');
+const roomsRouter = require('./rooms');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -282,5 +283,7 @@ router.patch('/:id', verifyOwnerJWT, async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+router.use('/:propertyId/rooms', roomsRouter);
 
 module.exports = router;

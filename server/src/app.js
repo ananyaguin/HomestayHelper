@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const healthRouter = require('./routes/health');
 const authRouter = require('./routes/auth');
 const propertiesRouter = require('./routes/properties');
+const roomsRouter = require('./routes/rooms');
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.use(morgan('dev'));
 // Routes
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/properties/:propertyId/rooms', roomsRouter);
 app.use('/api/properties', propertiesRouter);
 
 // Health check route
