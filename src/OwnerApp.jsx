@@ -49,7 +49,8 @@ import {
   Copy,
   ExternalLink,
   Check,
-  Eye
+  Eye,
+  Trash2
 } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -219,6 +220,8 @@ export default function OwnerApp({ onLogout }) {
   // Real Backend Rooms & Bookings State (QR-driven booking flow)
   const [rooms, setRooms] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [ownerRequests, setOwnerRequests] = useState([]);
+  const [updatingRequestId, setUpdatingRequestId] = useState(null);
   const [roomQrUrls, setRoomQrUrls] = useState({});
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const [selectedBookingForModal, setSelectedBookingForModal] = useState(null);
@@ -230,6 +233,44 @@ export default function OwnerApp({ onLogout }) {
   const [editRoomForm, setEditRoomForm] = useState({ name: '', price: '', capacity: 2, description: '' });
   const [isSavingRoom, setIsSavingRoom] = useState(false);
   const [saveRoomError, setSaveRoomError] = useState(null);
+
+  const handleUpdateRequestStatus = async (requestId, newStatus) => {
+    if (!activePropertyId || !requestId) return;
+    setUpdatingRequestId(requestId);
+    try {
+      const res = await api.patch(`/api/properties/${activePropertyId}/requests/${requestId}`, {
+        status: newStatus
+      });
+      if (res?.request) {
+        setOwnerRequests((prev) =>
+          prev.map((r) => (r.id === requestId ? { ...r, ...res.request } : r))
+        );
+      }
+    } catch (err) {
+      console.error('[OwnerApp] Failed to update request status:', err);
+      alert(err.message || 'Failed to update request status.');
+    } finally {
+      setUpdatingRequestId(null);
+    }
+  };
+
+  const [confirmRemoveReq, setConfirmRemoveReq] = useState(null);
+  const [isRemovingReq, setIsRemovingReq] = useState(false);
+
+  const handleRemoveOwnerRequest = async () => {
+    if (!activePropertyId || !confirmRemoveReq) return;
+    setIsRemovingReq(true);
+    try {
+      await api.delete(`/api/properties/${activePropertyId}/requests/${confirmRemoveReq.id}`);
+      setOwnerRequests((prev) => prev.filter((r) => r.id !== confirmRemoveReq.id));
+      setConfirmRemoveReq(null);
+    } catch (err) {
+      console.error('[OwnerApp] Failed to remove request:', err);
+      alert(err.message || 'Failed to remove request.');
+    } finally {
+      setIsRemovingReq(false);
+    }
+  };
 
   const handleSaveRoom = async (e) => {
     e.preventDefault();
@@ -272,7 +313,15 @@ export default function OwnerApp({ onLogout }) {
       const fetchedBookings = bookingsRes?.bookings || [];
       setBookings(fetchedBookings);
 
-      // 3. Generate QR codes for each room
+      // 3. Fetch guest requests for active property
+      try {
+        const reqsRes = await api.get(`/api/properties/${propertyId}/requests`);
+        setOwnerRequests(reqsRes?.requests || []);
+      } catch (reqErr) {
+        console.warn('[OwnerApp] Failed to load owner requests:', reqErr);
+      }
+
+      // 4. Generate QR codes for each room
       const qrMap = {};
       for (const room of fetchedRooms) {
         try {
@@ -508,13 +557,15 @@ export default function OwnerApp({ onLogout }) {
     }
   };
 
+  const pendingRequestsCount = ownerRequests.filter((r) => (r.status || '').toUpperCase() === 'PENDING').length;
+
   const navItems = [
     { id: 'tabDashboard', label: 'Dashboard', Icon: LayoutDashboard },
     { id: 'tabCommunicator', label: 'Communicator', Icon: MessageSquare },
     { id: 'tabLedger', label: 'Bookings & Ledger', Icon: BookOpen },
     { id: 'tabListing', label: 'AI Listing', Icon: Sparkles },
     { id: 'tabChecklist', label: 'Checklist', Icon: ClipboardCheck },
-    { id: 'tabRequests', label: 'Requests', Icon: Bell, badge: '3' },
+    { id: 'tabRequests', label: 'Requests', Icon: Bell, badge: pendingRequestsCount > 0 ? String(pendingRequestsCount) : null },
     { id: 'tabRooms', label: 'Rooms', Icon: Key },
     { id: 'tabProperty', label: 'Property Setup', Icon: Building },
     { id: 'tabSettings', label: 'Settings', Icon: Settings }
@@ -1313,38 +1364,183 @@ export default function OwnerApp({ onLogout }) {
 
           {/* TAB 6: REQUESTS */}
           {activeTab === 'tabRequests' && (
-            <div className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Bell className="w-5 h-5 text-amberGold" aria-hidden="true" />
-                  <span>Guest Requests</span>
-                </h3>
-                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-md">
-                  3 Pending
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">Extra blanket requested</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Room 101 • Rahul Sharma</p>
-                  </div>
-                  <button className="px-3 py-1.5 rounded-md bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 min-h-[44px] cursor-pointer">
-                    Fulfill
-                  </button>
+            <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30 gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Bell className="w-5 h-5 text-amberGold" aria-hidden="true" />
+                    <span>Guest Requests — {activePropertyName}</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Real-time guest requests submitted for active stay rooms.
+                  </p>
                 </div>
 
-                <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">Hot tea kettle refill</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Room 203 • Ananya Sen</p>
-                  </div>
-                  <button className="px-3 py-1.5 rounded-md bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 min-h-[44px] cursor-pointer">
-                    Fulfill
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => loadRoomsAndBookings(activePropertyId)}
+                    title="Refresh Requests"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900/40 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Refresh</span>
                   </button>
+                  <span className="text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950 px-2.5 py-1 rounded-md border border-amber-200 dark:border-amber-800">
+                    {pendingRequestsCount} Pending
+                  </span>
                 </div>
               </div>
+
+              <div className="space-y-2.5">
+                {ownerRequests.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
+                    No guest requests submitted for this property yet.
+                  </div>
+                ) : (
+                  ownerRequests.map((req) => {
+                    const statusUpper = (req.status || 'PENDING').toUpperCase();
+                    let badgeClass = 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+                    let statusText = 'Pending';
+                    if (statusUpper === 'IN_PROGRESS' || statusUpper === 'ACCEPTED') {
+                      badgeClass = 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border-sky-200 dark:border-sky-800';
+                      statusText = 'In Progress';
+                    } else if (statusUpper === 'COMPLETED') {
+                      badgeClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+                      statusText = 'Completed';
+                    } else if (statusUpper === 'REJECTED') {
+                      badgeClass = 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+                      statusText = 'Declined';
+                    } else if (statusUpper === 'CANCELLED') {
+                      badgeClass = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700';
+                      statusText = 'Cancelled';
+                    }
+
+                    const isUpdating = updatingRequestId === req.id;
+                    const canRemove = ['COMPLETED', 'REJECTED', 'CANCELLED'].includes(statusUpper);
+
+                    return (
+                      <div
+                        key={req.id}
+                        className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0b1612] border border-slate-200/70 dark:border-emerald-900/30 space-y-2 transition-all"
+                      >
+                        {/* Top Row: Item Name, Room & Guest, Status & Trash Action */}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0">
+                            <span className="font-extrabold text-sm text-slate-900 dark:text-white">
+                              {req.type}
+                            </span>
+                            <span className="text-slate-300 dark:text-slate-600 font-normal text-xs">•</span>
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">
+                              {req.room_name || 'Room'} · {req.guest_name}
+                            </span>
+                            {req.guest_phone && req.guest_phone !== 'N/A' && (
+                              <span className="text-[11px] text-slate-400">({req.guest_phone})</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${badgeClass}`}>
+                              {statusText}
+                            </span>
+                            {canRemove && (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmRemoveReq(req)}
+                                className="p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950/80 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                                title="Remove Request"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bottom Row: Note & Timestamp */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 pt-0.5">
+                          <div className="min-w-0 flex-1">
+                            {req.note ? (
+                              <p className="text-xs text-slate-600 dark:text-slate-300 italic truncate">
+                                Note: "{req.note}"
+                              </p>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">
+                                Requested {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+
+                          {req.note && (
+                            <span className="text-[11px] text-slate-400 shrink-0">
+                              Requested {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Action Buttons for Pending or In Progress */}
+                        {(statusUpper === 'PENDING' || statusUpper === 'IN_PROGRESS') && (
+                          <div className="flex flex-wrap items-center justify-end gap-1.5 pt-1 border-t border-slate-200/50 dark:border-emerald-900/20">
+                            {statusUpper === 'PENDING' && (
+                              <button
+                                disabled={isUpdating}
+                                onClick={() => handleUpdateRequestStatus(req.id, 'IN_PROGRESS')}
+                                className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer min-h-[32px]"
+                              >
+                                Accept
+                              </button>
+                            )}
+                            <button
+                              disabled={isUpdating}
+                              onClick={() => handleUpdateRequestStatus(req.id, 'COMPLETED')}
+                              className="px-3 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer min-h-[32px]"
+                            >
+                              Complete
+                            </button>
+                            <button
+                              disabled={isUpdating}
+                              onClick={() => handleUpdateRequestStatus(req.id, 'REJECTED')}
+                              className="px-3 py-1 rounded-lg border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 disabled:opacity-50 text-xs font-bold transition-all cursor-pointer min-h-[32px]"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* OWNER REMOVE REQUEST CONFIRMATION MODAL */}
+              {confirmRemoveReq && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                  <div className="bg-white dark:bg-[#0c1a14] rounded-2xl max-w-xs w-full border border-slate-200 dark:border-emerald-900/60 shadow-2xl p-4 space-y-3 animate-fadeIn">
+                    <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
+                      <Trash2 className="w-4 h-4 shrink-0" />
+                      <span>Remove Request?</span>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      Remove <strong>{confirmRemoveReq.type}</strong> ({confirmRemoveReq.room_name || 'Room'}) from your request list?
+                    </p>
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRemoveReq(null)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900/60 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-emerald-950 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isRemovingReq}
+                        onClick={handleRemoveOwnerRequest}
+                        className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer transition-all shadow-xs min-h-[32px]"
+                      >
+                        {isRemovingReq ? 'Removing...' : 'Yes, Remove'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

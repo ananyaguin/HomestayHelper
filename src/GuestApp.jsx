@@ -146,7 +146,7 @@ export default function GuestApp() {
             </div>
           </div>
         ) : (
-          <GuestHome data={stayData} />
+          <GuestHome data={stayData} token={token} />
         )}
       </main>
     </div>

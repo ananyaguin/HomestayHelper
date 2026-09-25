@@ -334,6 +334,69 @@ router.patch('/:id', verifyOwnerJWT, async (req, res) => {
   }
 });
 
+const requestService = require('../services/requestService');
+
+/**
+ * GET /api/properties/:propertyId/requests
+ * Returns all guest requests belonging strictly to the authenticated owner's property.
+ */
+router.get('/:propertyId/requests', verifyOwnerJWT, async (req, res) => {
+  try {
+    const requests = await requestService.getOwnerPropertyRequests(req.ownerId, req.params.propertyId);
+    return res.status(200).json({ requests });
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error fetching owner property requests:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PATCH /api/properties/:propertyId/requests/:requestId
+ * Updates status of a guest request belonging to the authenticated owner's property.
+ */
+router.patch('/:propertyId/requests/:requestId', verifyOwnerJWT, async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    const updated = await requestService.updateRequestStatus(
+      req.ownerId,
+      req.params.propertyId,
+      req.params.requestId,
+      status
+    );
+    return res.status(200).json({ request: updated });
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error updating guest request status:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/properties/:propertyId/requests/:requestId
+ * Removes a completed, rejected, or cancelled request from the property's list.
+ */
+router.delete('/:propertyId/requests/:requestId', verifyOwnerJWT, async (req, res) => {
+  try {
+    const result = await requestService.removeOwnerPropertyRequest(
+      req.ownerId,
+      req.params.propertyId,
+      req.params.requestId
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error removing guest request:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.use('/:propertyId/rooms', roomsRouter);
 
 module.exports = router;
