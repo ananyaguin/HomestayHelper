@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { homestayDB } from './services/db';
 import { api } from './services/api';
 import GuestCommunicator from './components/GuestCommunicator';
@@ -42,16 +42,7 @@ import {
   BedDouble,
   Plus,
   Pencil,
-  CheckCircle2,
-  QrCode,
-  Copy,
-  ExternalLink,
-  Check,
-  Eye,
-  RefreshCw,
-  Phone,
-  User,
-  CalendarDays
+  CheckCircle2
 } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -110,183 +101,103 @@ export default function OwnerApp({ onLogout }) {
 
   // Property Onboarding & Multi-Property Management State
   const [isLoadingPropertyCheck, setIsLoadingPropertyCheck] = useState(true);
+  const [propertyFetchError, setPropertyFetchError] = useState(null);
   const [hasProperty, setHasProperty] = useState(false);
   const [propertiesList, setPropertiesList] = useState([]);
-  const [activePropertyId, setActivePropertyId] = useState(null);
+  const [activePropertyId, setActivePropertyId] = useState(() => {
+    if (typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem('activePropertyId') || null;
+    }
+    return null;
+  });
   const [propertyViewMode, setPropertyViewMode] = useState('list'); // 'list' | 'form'
   const [editingProperty, setEditingProperty] = useState(null);
   const [isOnboarding, setIsOnboarding] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
-    async function checkPropertyStatus() {
-      setIsLoadingPropertyCheck(true);
-      try {
-        const response = await api.get('/api/properties');
-        if (isMounted) {
-          if (response && Array.isArray(response.properties) && response.properties.length > 0) {
-            setPropertiesList(response.properties);
-            setHasProperty(true);
-            setActivePropertyId(response.properties[0].id);
-            setIsOnboarding(false);
-            setPropertyViewMode('list');
-          } else {
-            setPropertiesList([]);
-            setHasProperty(false);
-            setActivePropertyId(null);
-            setIsOnboarding(true);
-            setPropertyViewMode('form');
-            setEditingProperty(null);
-            setActiveTab('tabProperty');
-          }
-        }
-      } catch (err) {
-        console.warn('[OwnerApp] Failed to check property status from backend:', err);
-        if (isMounted) {
-          if (propertiesList.length > 0) {
-            setHasProperty(true);
-            setIsOnboarding(false);
-            setPropertyViewMode('list');
-          } else {
-            setHasProperty(false);
-            setIsOnboarding(true);
-            setPropertyViewMode('form');
-            setEditingProperty(null);
-            setActiveTab('tabProperty');
-          }
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingPropertyCheck(false);
-        }
+  const handleSelectActiveProperty = (id) => {
+    setActivePropertyId(id);
+    if (typeof sessionStorage !== 'undefined') {
+      if (id) {
+        sessionStorage.setItem('activePropertyId', id);
+      } else {
+        sessionStorage.removeItem('activePropertyId');
       }
     }
-    checkPropertyStatus();
-    return () => {
-      isMounted = false;
-    };
+  };
+
+  const fetchProperties = useCallback(async () => {
+    setIsLoadingPropertyCheck(true);
+    setPropertyFetchError(null);
+    try {
+      const response = await api.get('/api/properties');
+      if (response && Array.isArray(response.properties)) {
+        setPropertiesList(response.properties);
+        if (response.properties.length > 0) {
+          setHasProperty(true);
+          setIsOnboarding(false);
+          const storedId = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('activePropertyId') : null;
+          const exists = response.properties.some((p) => p.id === storedId);
+          let targetActiveId;
+          if (exists && storedId) {
+            targetActiveId = storedId;
+          } else {
+            targetActiveId = response.properties[0].id;
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem('activePropertyId', targetActiveId);
+            }
+          }
+          setActivePropertyId(targetActiveId);
+        } else {
+          // Zero properties -> Mandatory onboarding mode
+          setPropertiesList([]);
+          setHasProperty(false);
+          setActivePropertyId(null);
+          setIsOnboarding(true);
+          setPropertyViewMode('form');
+          setEditingProperty(null);
+          setActiveTab('tabProperty');
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('activePropertyId');
+          }
+        }
+      } else {
+        setPropertiesList([]);
+        setHasProperty(false);
+        setActivePropertyId(null);
+        setIsOnboarding(true);
+        setPropertyViewMode('form');
+        setEditingProperty(null);
+        setActiveTab('tabProperty');
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem('activePropertyId');
+        }
+      }
+    } catch (err) {
+      console.error('[OwnerApp] Failed to fetch properties from backend:', err);
+      setPropertyFetchError(err.message || 'Failed to load properties from server. Please check connection.');
+    } finally {
+      setIsLoadingPropertyCheck(false);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchProperties();
+  }, [fetchProperties]);
+
   const handlePropertySaved = (savedProp) => {
-    const propId = savedProp?.id || editingProperty?.id || 'prop_' + Date.now();
-    const normalizedProp = {
-      ...savedProp,
-      id: propId,
-      name: savedProp?.name || savedProp?.propertyName || 'My Homestay',
-      address: savedProp?.address || '',
-      total_rooms: savedProp?.total_rooms || savedProp?.totalRooms || 4
-    };
-
-    setPropertiesList((prev) => {
-      const existsIndex = prev.findIndex((p) => p.id === normalizedProp.id);
-      if (existsIndex >= 0) {
-        const copy = [...prev];
-        copy[existsIndex] = normalizedProp;
-        return copy;
-      }
-      return [...prev, normalizedProp];
-    });
-
-    setActivePropertyId(normalizedProp.id);
+    const wasOnboarding = isOnboarding || propertiesList.length === 0;
+    if (savedProp && savedProp.id) {
+      handleSelectActiveProperty(savedProp.id);
+    }
     setHasProperty(true);
-
-    if (isOnboarding) {
-      setIsOnboarding(false);
-      setPropertyViewMode('list');
-      setEditingProperty(null);
+    setIsOnboarding(false);
+    setPropertyViewMode('list');
+    setEditingProperty(null);
+    fetchProperties();
+    if (wasOnboarding) {
       setActiveTab('tabDashboard');
-    } else {
-      setPropertyViewMode('list');
-      setEditingProperty(null);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Real Backend Rooms & Bookings State (QR-driven booking flow)
-  const [rooms, setRooms] = useState([]);
-  const [bookings, setBookings] = useState([]);
-  const [roomQrUrls, setRoomQrUrls] = useState({});
-  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
-  const [selectedBookingForModal, setSelectedBookingForModal] = useState(null);
-  const [showQrModalRoom, setShowQrModalRoom] = useState(null);
-  const [copiedRoomId, setCopiedRoomId] = useState(null);
-  const [copiedRoomLink, setCopiedRoomLink] = useState(null);
-  const [bookingActionLoading, setBookingActionLoading] = useState(false);
-
-  const loadRoomsAndBookings = async (propertyId) => {
-    if (!propertyId) return;
-    setIsLoadingRooms(true);
-    try {
-      // 1. Fetch rooms for active property
-      const roomsRes = await api.get(`/api/properties/${propertyId}/rooms`);
-      const fetchedRooms = roomsRes?.rooms || [];
-      setRooms(fetchedRooms);
-
-      // 2. Fetch all bookings for authenticated owner
-      const bookingsRes = await api.get('/api/bookings');
-      const fetchedBookings = bookingsRes?.bookings || [];
-      setBookings(fetchedBookings);
-
-      // 3. Generate QR codes for each room
-      const qrMap = {};
-      for (const room of fetchedRooms) {
-        try {
-          const guestUrl = `${window.location.origin}/guest/room/${room.id}`;
-          const qrDataUrl = await QRCode.toDataURL(guestUrl, {
-            width: 260,
-            margin: 2,
-            color: {
-              dark: '#064e3b',
-              light: '#ffffff'
-            }
-          });
-          qrMap[room.id] = { qrDataUrl, guestUrl };
-        } catch (qrErr) {
-          console.error('Failed to generate QR for room:', room.id, qrErr);
-        }
-      }
-      setRoomQrUrls(qrMap);
-    } catch (err) {
-      console.warn('[OwnerApp] Failed to load rooms or bookings:', err);
-    } finally {
-      setIsLoadingRooms(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activePropertyId) {
-      loadRoomsAndBookings(activePropertyId);
-    }
-  }, [activePropertyId]);
-
-  const handleBookingCheckIn = async (bookingId) => {
-    try {
-      setBookingActionLoading(true);
-      await api.patch(`/api/bookings/${bookingId}/check-in`);
-      await loadRoomsAndBookings(activePropertyId);
-      if (selectedBookingForModal?.id === bookingId) {
-        setSelectedBookingForModal((prev) => (prev ? { ...prev, status: 'checked_in' } : null));
-      }
-    } catch (err) {
-      alert(err.message || 'Check-in transition failed');
-    } finally {
-      setBookingActionLoading(false);
-    }
-  };
-
-  const handleBookingCheckOut = async (bookingId) => {
-    try {
-      setBookingActionLoading(true);
-      await api.patch(`/api/bookings/${bookingId}/check-out`);
-      await loadRoomsAndBookings(activePropertyId);
-      if (selectedBookingForModal?.id === bookingId) {
-        setSelectedBookingForModal((prev) => (prev ? { ...prev, status: 'checked_out' } : null));
-      }
-    } catch (err) {
-      alert(err.message || 'Check-out transition failed');
-    } finally {
-      setBookingActionLoading(false);
-    }
   };
 
   const activeProperty = propertiesList.find((p) => p.id === activePropertyId) || propertiesList[0] || null;
@@ -618,17 +529,15 @@ export default function OwnerApp({ onLogout }) {
           {/* Clean ~18% Black Overlay Backdrop (No Blur, No Green Tint) */}
           <div
             onClick={() => closeDrawer()}
-            className={`lg:hidden fixed inset-0 bg-black/20 z-40 transition-opacity duration-300 ease-out ${
-              drawerAnimatingOut ? 'opacity-0' : 'opacity-100'
-            }`}
+            className={`lg:hidden fixed inset-0 bg-black/20 z-40 transition-opacity duration-300 ease-out ${drawerAnimatingOut ? 'opacity-0' : 'opacity-100'
+              }`}
             aria-hidden="true"
           />
 
           {/* Opaque White Left-Sided Overlay Drawer */}
           <aside
-            className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[74vw] max-w-[290px] bg-white dark:bg-[#0c1813] border-r border-slate-200/70 dark:border-emerald-900/30 shadow-xl rounded-r-2xl py-4 px-3 flex flex-col justify-between overflow-y-auto transition-transform duration-300 ease-out ${
-              drawerAnimatingOut ? '-translate-x-full' : 'translate-x-0'
-            }`}
+            className={`lg:hidden fixed inset-y-0 left-0 z-50 w-[74vw] max-w-[290px] bg-white dark:bg-[#0c1813] border-r border-slate-200/70 dark:border-emerald-900/30 shadow-xl rounded-r-2xl py-4 px-3 flex flex-col justify-between overflow-y-auto transition-transform duration-300 ease-out ${drawerAnimatingOut ? '-translate-x-full' : 'translate-x-0'
+              }`}
           >
             <div className="space-y-3">
               {/* Drawer Header: Logo + Name + ONE thin X close icon */}
@@ -652,53 +561,51 @@ export default function OwnerApp({ onLogout }) {
                 </button>
               </div>
 
-                {/* Compact Natural Navigation Items */}
-                <nav className="space-y-0.5 pt-1">
-                  {!hasProperty && (
-                    <div className="mb-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-700/50 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                      <span>Complete Property Setup to unlock dashboard.</span>
-                    </div>
-                  )}
-                  {navItems.map((item) => {
-                    const ItemIcon = item.Icon;
-                    const isActive = activeTab === item.id;
-                    const isDisabled = !hasProperty && item.id !== 'tabProperty';
-                    return (
-                      <button
-                        key={item.id}
-                        disabled={isDisabled}
-                        onClick={() => {
-                          if (isDisabled) return;
-                          closeDrawer(() => {
-                            setActiveTab(item.id);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          });
-                        }}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer min-h-[46px] ${
-                          isDisabled
-                            ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-slate-600'
-                            : isActive
-                              ? 'bg-[#f0f7f3] dark:bg-[#0e241b] text-[#123D2A] dark:text-emerald-300 font-medium border-l-3 border-[#164A34] dark:border-emerald-400'
-                              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
+              {/* Compact Natural Navigation Items */}
+              <nav className="space-y-0.5 pt-1">
+                {!hasProperty && (
+                  <div className="mb-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-700/50 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Complete Property Setup to unlock dashboard.</span>
+                  </div>
+                )}
+                {navItems.map((item) => {
+                  const ItemIcon = item.Icon;
+                  const isActive = activeTab === item.id;
+                  const isDisabled = !hasProperty && item.id !== 'tabProperty';
+                  return (
+                    <button
+                      key={item.id}
+                      disabled={isDisabled}
+                      onClick={() => {
+                        if (isDisabled) return;
+                        closeDrawer(() => {
+                          setActiveTab(item.id);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        });
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer min-h-[46px] ${isDisabled
+                          ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-slate-600'
+                          : isActive
+                            ? 'bg-[#f0f7f3] dark:bg-[#0e241b] text-[#123D2A] dark:text-emerald-300 font-medium border-l-3 border-[#164A34] dark:border-emerald-400'
+                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
                         }`}
-                      >
-                        <ItemIcon
-                          className={`w-[18px] h-[18px] stroke-[1.5] shrink-0 ${
-                            isActive ? 'text-[#164A34] dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
+                    >
+                      <ItemIcon
+                        className={`w-[18px] h-[18px] stroke-[1.5] shrink-0 ${isActive ? 'text-[#164A34] dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
                           }`}
-                          aria-hidden="true"
-                        />
-                        <span className="flex-1 text-left font-medium">{item.label}</span>
-                        {item.badge && (
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white shrink-0">
-                            {item.badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </nav>
+                        aria-hidden="true"
+                      />
+                      <span className="flex-1 text-left font-medium">{item.label}</span>
+                      {item.badge && (
+                        <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-white shrink-0">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
             </div>
           </aside>
         </>
@@ -736,18 +643,16 @@ export default function OwnerApp({ onLogout }) {
                     setActiveTab(item.id);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-base font-semibold transition-all cursor-pointer ${
-                    isDisabled
+                  className={`flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-base font-semibold transition-all cursor-pointer ${isDisabled
                       ? 'opacity-40 cursor-not-allowed text-slate-400 dark:text-slate-600'
                       : isActive
                         ? 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold border-r-3 border-emerald-600 dark:border-emerald-400 shadow-2xs'
                         : 'text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-emerald-950/30'
-                  }`}
+                    }`}
                 >
                   <ItemIcon
-                    className={`w-5 h-5 shrink-0 ${
-                      isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
-                    }`}
+                    className={`w-5 h-5 shrink-0 ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'
+                      }`}
                     aria-hidden="true"
                   />
                   <span className="flex-1 text-left">{item.label}</span>
@@ -872,13 +777,12 @@ export default function OwnerApp({ onLogout }) {
                                     {room.name}
                                   </span>
                                   <span
-                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                      activeBooking?.status === 'checked_in'
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeBooking?.status === 'checked_in'
                                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                                         : activeBooking?.status === 'upcoming'
-                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                        : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                    }`}
+                                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                          : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                      }`}
                                   >
                                     {activeBooking ? formatStatus(activeBooking.status) : 'Vacant'}
                                   </span>
@@ -1206,11 +1110,10 @@ export default function OwnerApp({ onLogout }) {
                       className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
                     >
                       <div
-                        className={`max-w-[85%] p-3.5 rounded-2xl text-xs sm:text-sm font-medium ${
-                          msg.sender === 'user'
+                        className={`max-w-[85%] p-3.5 rounded-2xl text-xs sm:text-sm font-medium ${msg.sender === 'user'
                             ? 'bg-emerald-700 text-white rounded-br-none'
                             : 'bg-slate-100 dark:bg-[#07130e] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-emerald-900/40 rounded-bl-none'
-                        }`}
+                          }`}
                       >
                         {msg.text}
                       </div>
@@ -1260,9 +1163,9 @@ export default function OwnerApp({ onLogout }) {
                   onCancel={
                     !isOnboarding && propertiesList.length > 0
                       ? () => {
-                          setEditingProperty(null);
-                          setPropertyViewMode('list');
-                        }
+                        setEditingProperty(null);
+                        setPropertyViewMode('list');
+                      }
                       : null
                   }
                 />
@@ -1276,100 +1179,141 @@ export default function OwnerApp({ onLogout }) {
                       </div>
                       <div>
                         <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                          Property Setup
+                          Property Setup & Management
                         </h2>
                         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                          Manage your homestay properties, edit details, or add a new property listing.
+                          Manage your homestay properties loaded directly from server.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Property Cards Grid */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {propertiesList.map((prop) => {
-                        const isActive = prop.id === activePropertyId;
-                        const roomCount = prop.total_rooms || prop.totalRooms || 4;
-                        return (
-                          <div
-                            key={prop.id}
-                            onClick={() => setActivePropertyId(prop.id)}
-                            className={`p-5 rounded-2xl transition-all cursor-pointer relative flex flex-col justify-between group ${
-                              isActive
-                                ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-2 border-emerald-600 dark:border-emerald-400 shadow-sm'
-                                : 'bg-white dark:bg-[#0f1d17] border border-slate-200/80 dark:border-emerald-900/40 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-xs'
-                            }`}
-                          >
-                            <div className="space-y-2">
-                              <div className="flex items-start justify-between gap-2">
-                                <h3 className="font-extrabold text-slate-900 dark:text-white text-base sm:text-lg leading-tight truncate flex-1">
-                                  {prop.name || prop.propertyName || 'Homestay Property'}
-                                </h3>
-                                {isActive && (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 shrink-0">
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                    Active
-                                  </span>
-                                )}
-                              </div>
-
-                              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                                {prop.address || 'Takdah, Darjeeling Hills'}
-                              </p>
-
-                              <div className="pt-1 flex items-center gap-2">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-emerald-950 text-slate-700 dark:text-slate-300 text-xs font-semibold">
-                                  <BedDouble className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                  {roomCount} Rooms
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-emerald-900/30 flex items-center justify-between">
-                              <span className="text-[11px] text-slate-400 font-medium">
-                                {isActive ? 'Currently Active' : 'Click to select'}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingProperty(prop);
-                                  setPropertyViewMode('form');
-                                }}
-                                title="Edit property details"
-                                aria-label="Edit Property"
-                                className="p-2 rounded-lg text-slate-500 hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center"
-                              >
-                                <Pencil className="w-4 h-4 stroke-[2]" aria-hidden="true" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* "+ Add New Property" Card */}
-                      <div
-                        onClick={() => {
-                          setEditingProperty(null);
-                          setPropertyViewMode('form');
-                        }}
-                        className="p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-emerald-800/60 hover:border-emerald-600 dark:hover:border-emerald-400 bg-slate-50/50 dark:bg-[#07130e]/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 min-h-[160px] group"
+                  {/* Error State Banner */}
+                  {propertyFetchError && (
+                    <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-900 dark:text-rose-200 animate-fadeIn">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+                        <span className="text-xs sm:text-sm font-semibold">{propertyFetchError}</span>
+                      </div>
+                      <button
+                        onClick={fetchProperties}
+                        className="px-3.5 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 self-start sm:self-auto min-h-[38px]"
                       >
-                        <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-700 dark:text-emerald-300 group-hover:scale-110 transition-transform">
-                          <Plus className="w-5 h-5 stroke-[2.5]" aria-hidden="true" />
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Retry</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Loading State Skeleton / Spinner */}
+                  {isLoadingPropertyCheck ? (
+                    <div className="p-8 rounded-2xl bg-white dark:bg-[#0f1d17] border border-slate-200/80 dark:border-emerald-900/40 text-center space-y-3">
+                      <div className="w-8 h-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin mx-auto" />
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Loading properties from server...
+                      </p>
+                    </div>
+                  ) : (
+                    /* Property Cards Grid */
+                    <div className="space-y-4">
+                      {/* Empty State Banner */}
+                      {propertiesList.length === 0 && !propertyFetchError && (
+                        <div className="p-6 rounded-2xl bg-white dark:bg-[#0f1d17] border border-slate-200/80 dark:border-emerald-900/40 text-center space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-700 dark:text-emerald-300 mx-auto">
+                            <Building2 className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white">No Properties Found</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                              No homestays registered under your account yet. Click "+ Add New Property" below to get started.
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">
-                            + Add New Property
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
-                            Add another homestay
-                          </p>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {propertiesList.map((prop) => {
+                          const isActive = prop.id === activePropertyId;
+                          const roomCount = prop.total_rooms || prop.totalRooms || 4;
+                          return (
+                            <div
+                              key={prop.id}
+                              onClick={() => handleSelectActiveProperty(prop.id)}
+                              className={`p-5 rounded-2xl transition-all cursor-pointer relative flex flex-col justify-between group ${isActive
+                                  ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-2 border-emerald-600 dark:border-emerald-400 shadow-sm'
+                                  : 'bg-white dark:bg-[#0f1d17] border border-slate-200/80 dark:border-emerald-900/40 hover:border-emerald-400 dark:hover:border-emerald-600 shadow-xs'
+                                }`}
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h3 className="font-extrabold text-slate-900 dark:text-white text-base sm:text-lg leading-tight truncate flex-1">
+                                    {prop.name || prop.propertyName || 'Homestay Property'}
+                                  </h3>
+                                  {isActive && (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 shrink-0">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                      Active
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                                  {prop.address || 'Takdah, Darjeeling Hills'}
+                                </p>
+
+                                <div className="pt-1 flex items-center gap-2">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-emerald-950 text-slate-700 dark:text-slate-300 text-xs font-semibold">
+                                    <BedDouble className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    {roomCount} Rooms
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-emerald-900/30 flex items-center justify-between">
+                                <span className="text-[11px] text-slate-400 font-medium">
+                                  {isActive ? 'Currently Active' : 'Click to select'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingProperty(prop);
+                                    setPropertyViewMode('form');
+                                  }}
+                                  title="Edit property details"
+                                  aria-label="Edit Property"
+                                  className="p-2 rounded-lg text-slate-500 hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-300 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer min-h-[40px] min-w-[40px] flex items-center justify-center"
+                                >
+                                  <Pencil className="w-4 h-4 stroke-[2]" aria-hidden="true" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* "+ Add New Property" Card */}
+                        <div
+                          onClick={() => {
+                            setEditingProperty(null);
+                            setPropertyViewMode('form');
+                          }}
+                          className="p-6 rounded-2xl border-2 border-dashed border-slate-300 dark:border-emerald-800/60 hover:border-emerald-600 dark:hover:border-emerald-400 bg-slate-50/50 dark:bg-[#07130e]/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 min-h-[160px] group"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-700 dark:text-emerald-300 group-hover:scale-110 transition-transform">
+                            <Plus className="w-5 h-5 stroke-[2.5]" aria-hidden="true" />
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">
+                              + Add New Property
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                              Add another homestay
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1495,13 +1439,12 @@ export default function OwnerApp({ onLogout }) {
                               {room.name}
                             </h4>
                             <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                activeBooking?.status === 'checked_in'
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeBooking?.status === 'checked_in'
                                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                                   : activeBooking?.status === 'upcoming'
-                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                  : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                              }`}
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                    : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                }`}
                             >
                               {activeBooking ? formatStatus(activeBooking.status) : 'Vacant'}
                             </span>
@@ -1685,10 +1628,7 @@ export default function OwnerApp({ onLogout }) {
                     </p>
                   </div>
                   <button
-                    onClick={() => {
-                      if (onLogout) onLogout();
-                      window.location.href = '/login';
-                    }}
+                    onClick={handleLogout}
                     title="Sign Out"
                     aria-label="Sign Out"
                     className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-100/60 dark:hover:bg-rose-950/40 active:scale-95 transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center border border-slate-200/60 dark:border-emerald-900/40"
@@ -1765,13 +1705,12 @@ export default function OwnerApp({ onLogout }) {
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 dark:text-slate-400">Booking Status</span>
                   <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      selectedBookingForModal.status === 'checked_in'
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${selectedBookingForModal.status === 'checked_in'
                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                         : selectedBookingForModal.status === 'upcoming'
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                        : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                    }`}
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                          : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
                   >
                     {formatStatus(selectedBookingForModal.status)}
                   </span>
