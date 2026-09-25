@@ -69,6 +69,7 @@ export default function PropertySetup({ onSaveSuccess, existingProperty, isOnboa
   const [showAmenitiesModal, setShowAmenitiesModal] = useState(false);
   const [errors, setErrors] = useState({});
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -188,13 +189,14 @@ export default function PropertySetup({ onSaveSuccess, existingProperty, isOnboa
     }
 
     setErrors({});
+    setSubmitError(null);
     setIsSubmitting(true);
 
     const payload = {
       name: formData.propertyName.trim(),
-      total_rooms: roomsNum,
       address: formData.address.trim(),
       description: formData.description.trim(),
+      total_rooms: roomsNum,
       wifi_ssid: formData.wifiSsid.trim(),
       wifi_password: formData.wifiPassword,
       amenities: formData.amenities,
@@ -206,30 +208,26 @@ export default function PropertySetup({ onSaveSuccess, existingProperty, isOnboa
         let savedProp;
         if (existingProperty && existingProperty.id) {
           const res = await api.patch(`/api/properties/${existingProperty.id}`, payload);
-          savedProp = res?.property || res || payload;
-          if (!savedProp.id) savedProp.id = existingProperty.id;
+          savedProp = res?.property || res;
         } else {
           const res = await api.post('/api/properties', payload);
-          savedProp = res?.property || res || payload;
-          if (!savedProp.id) savedProp.id = 'prop_' + Date.now();
+          savedProp = res?.property || res;
         }
-        if (!savedProp.name) savedProp.name = payload.name;
-        if (!savedProp.address) savedProp.address = payload.address;
-        if (!savedProp.total_rooms) savedProp.total_rooms = payload.total_rooms;
+
+        if (savedProp) {
+          savedProp.total_rooms = roomsNum;
+          savedProp.description = formData.description;
+        }
+
         setSaveSuccess(true);
+        setSubmitError(null);
         if (onSaveSuccess) {
           onSaveSuccess(savedProp);
         }
       } catch (err) {
-        console.warn('[PropertySetup] API save failed, falling back to local state:', err);
-        const fallbackProp = {
-          id: existingProperty?.id || 'prop_' + Date.now(),
-          ...payload
-        };
-        setSaveSuccess(true);
-        if (onSaveSuccess) {
-          onSaveSuccess(fallbackProp);
-        }
+        console.error('[PropertySetup] API save error:', err);
+        setSaveSuccess(false);
+        setSubmitError(err.message || 'Failed to save property. Please try again.');
       } finally {
         setIsSubmitting(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -260,6 +258,24 @@ export default function PropertySetup({ onSaveSuccess, existingProperty, isOnboa
             type="button"
             onClick={() => setSaveSuccess(false)}
             className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-950 text-xs font-bold px-2 py-1 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Error Notification Banner */}
+      {submitError && (
+        <div className="bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-700/50 p-4 rounded-xl flex items-start gap-3 text-rose-900 dark:text-rose-200 animate-fadeIn">
+          <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1 text-xs sm:text-sm">
+            <p className="font-bold">Failed to Save Property</p>
+            <p className="mt-0.5 text-rose-800 dark:text-rose-300/90">{submitError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSubmitError(null)}
+            className="text-rose-700 dark:text-rose-400 hover:text-rose-950 text-xs font-bold px-2 py-1 cursor-pointer"
           >
             Dismiss
           </button>
