@@ -22,7 +22,11 @@ import {
   TrendingDown,
   DollarSign,
   Pencil,
-  Trash2
+  Trash2,
+  Eye,
+  FileText,
+  Mail,
+  ShieldCheck
 } from 'lucide-react';
 
 const EXPENSE_CATEGORIES = [
@@ -55,6 +59,45 @@ function formatFullDate(dateStr) {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function maskIdNumber(idNumber, idType = '') {
+  if (!idNumber) return 'Not provided';
+  const clean = String(idNumber).trim();
+  if (!clean) return 'Not provided';
+
+  const typeLower = String(idType).toLowerCase();
+  const digitsOnly = clean.replace(/\D/g, '');
+
+  if (typeLower.includes('aadhaar') || typeLower.includes('aadhar')) {
+    if (digitsOnly.length >= 4) {
+      return `XXXX XXXX ${digitsOnly.slice(-4)}`;
+    }
+  }
+
+  if (typeLower.includes('passport')) {
+    if (clean.length > 4) {
+      return `${clean.slice(0, 3)}****`;
+    }
+  }
+
+  // Voter ID, Driving Licence, or general ID
+  if (clean.length <= 4) {
+    return '•••• ' + clean;
+  }
+  const prefix = clean.slice(0, 2);
+  const suffix = clean.slice(-3);
+  return `${prefix}••••${suffix}`;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export default function BookingsLedger() {
   const [bookings, setBookings] = useState([]);
   const [bookingLedgers, setBookingLedgers] = useState({});
@@ -67,6 +110,7 @@ export default function BookingsLedger() {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [viewingDocumentGuest, setViewingDocumentGuest] = useState(null);
 
   // Form States
   const [paymentForm, setPaymentForm] = useState({
@@ -219,8 +263,64 @@ export default function BookingsLedger() {
   // Selected booking with enriched financial data
   const currentSelectedBooking = useMemo(() => {
     if (!selectedBooking) return null;
-    return enrichedBookings.find((b) => b.id === selectedBooking.id) || selectedBooking;
+    const enriched = enrichedBookings.find((b) => b.id === selectedBooking.id);
+    const guests = (selectedBooking.guests && selectedBooking.guests.length > 0)
+      ? selectedBooking.guests
+      : (enriched?.guests || []);
+    return {
+      ...(enriched || {}),
+      ...selectedBooking,
+      guests,
+      totalAmount: enriched?.totalAmount ?? (parseFloat(selectedBooking.totalAmount || selectedBooking.total_amount) || 0),
+      paidAmount: enriched?.paidAmount ?? 0,
+      remainingAmount: enriched?.remainingAmount ?? (parseFloat(selectedBooking.totalAmount || selectedBooking.total_amount) || 0),
+      paymentStatus: enriched?.paymentStatus || 'PENDING',
+      paymentEntries: enriched?.paymentEntries || [],
+      chargeEntries: enriched?.chargeEntries || [],
+      ledgerEntries: enriched?.ledgerEntries || []
+    };
   }, [selectedBooking, enrichedBookings]);
+
+  // Extract all guests belonging to currently selected booking dynamically
+  const modalGuests = useMemo(() => {
+    if (!currentSelectedBooking) return [];
+    if (Array.isArray(currentSelectedBooking.guests) && currentSelectedBooking.guests.length > 0) {
+      return currentSelectedBooking.guests;
+    }
+    return [
+      {
+        id: 'primary',
+        name: currentSelectedBooking.guest_name,
+        phone: currentSelectedBooking.guest_phone,
+        is_primary: true
+      }
+    ];
+  }, [currentSelectedBooking]);
+
+  // Fetch single booking details from backend when selected
+  useEffect(() => {
+    if (!selectedBooking?.id) return;
+    let isCancelled = false;
+    api.get(`/api/bookings/${selectedBooking.id}`)
+      .then((res) => {
+        if (!isCancelled && res?.booking) {
+          setSelectedBooking((prev) => {
+            if (!prev || prev.id !== selectedBooking.id) return prev;
+            return {
+              ...prev,
+              ...res.booking,
+              guests: res.guests || res.booking.guests || prev.guests
+            };
+          });
+        }
+      })
+      .catch(() => {
+        // Silently continue using already enriched booking data
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedBooking?.id]);
 
   /**
    * FINANCIAL OVERVIEW Calculations
@@ -568,6 +668,357 @@ export default function BookingsLedger() {
     link.click();
     document.body.removeChild(link);
   };
+
+  /**
+   * Generates a clean printable/downloadable booking statement for the currently selected booking
+   */
+  /**
+   * Generates a clean printable/downloadable booking statement for the currently selected booking
+   */
+  const handleDownloadBookingDetails = useCallback((booking) => {
+    if (!booking) return;
+
+    const guestsList = (Array.isArray(booking.guests) && booking.guests.length > 0)
+      ? booking.guests
+      : [
+          {
+            name: booking.guest_name,
+            phone: booking.guest_phone,
+            is_primary: true
+          }
+        ];
+
+    const paymentEntries = booking.paymentEntries || [];
+    const propertyName = booking.property_name || 'Homestay';
+    const roomName = booking.room_name || 'Room';
+    const bookingId = booking.id || '';
+    const shortId = bookingId ? bookingId.slice(0, 8).toUpperCase() : 'UNKNOWN';
+    const checkInFormatted = formatFullDate(booking.check_in);
+    const checkOutFormatted = formatFullDate(booking.check_out);
+    const nights = booking.nights || 1;
+    const totalAmountStr = formatCurrency(booking.totalAmount);
+    const paidAmountStr = formatCurrency(booking.paidAmount);
+    const pendingAmountStr = formatCurrency(booking.remainingAmount);
+    const paymentStatus = booking.paymentStatus || 'PENDING';
+    const generatedAt = new Date().toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
+
+    const guestsHtml = guestsList.map((g, idx) => {
+      const idType = g.id_type || g.idType || 'Government ID';
+      const hasIdNumber = Boolean(g.id_number || g.idNumber);
+      const maskedId = hasIdNumber ? maskIdNumber(g.id_number || g.idNumber, idType) : null;
+      const photoData = g.id_photo || g.idPhoto;
+      const hasPhoto = Boolean(photoData);
+      const isPdf = photoData && (String(photoData).startsWith('data:application/pdf') || String(photoData).endsWith('.pdf'));
+
+      let idDocContent = '';
+      if (hasPhoto) {
+        if (isPdf) {
+          idDocContent = `
+            <div style="margin-top: 10px; padding: 10px 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px;">
+              <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px;">ID Document (PDF)</div>
+              <a href="${photoData}" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 6px 14px; background: #047857; color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 600;">📄 View Stored PDF Document</a>
+            </div>
+          `;
+        } else {
+          idDocContent = `
+            <div style="margin-top: 10px;">
+              <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px;">ID Document</div>
+              <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; display: inline-block; max-width: 100%;">
+                <img src="${photoData}" alt="ID Document for ${escapeHtml(g.name || 'Guest')}" style="max-height: 240px; max-width: 100%; object-fit: contain; border-radius: 4px; display: block;" />
+              </div>
+            </div>
+          `;
+        }
+      } else {
+        idDocContent = `
+          <div style="margin-top: 8px; font-size: 12px; color: #94a3b8; font-style: italic;">
+            ID: Not provided
+          </div>
+        `;
+      }
+
+      return `
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; background-color: #f8fafc;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="color: #0f172a; font-size: 14px;">GUEST ${idx + 1} ${g.is_primary ? '— PRIMARY' : ''}</strong>
+            <span style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: ${hasPhoto ? '#dcfce7' : '#f1f5f9'}; color: ${hasPhoto ? '#166534' : '#64748b'}; font-weight: 600;">
+              ${hasPhoto ? 'ID Uploaded' : 'No Document'}
+            </span>
+          </div>
+          <div style="font-size: 12px; color: #475569; line-height: 1.6;">
+            <div><strong>Name:</strong> ${escapeHtml(g.name || 'Guest')}</div>
+            <div><strong>Phone:</strong> ${escapeHtml(g.phone || 'Not provided')}</div>
+            ${g.email ? `<div><strong>Email:</strong> ${escapeHtml(g.email)}</div>` : ''}
+            <div><strong>ID Type:</strong> ${escapeHtml(idType)}</div>
+            ${maskedId ? `<div><strong>ID Number:</strong> <code style="background: #e2e8f0; padding: 2px 4px; border-radius: 4px; font-family: monospace;">${escapeHtml(maskedId)}</code></div>` : ''}
+          </div>
+          ${idDocContent}
+        </div>
+      `;
+    }).join('');
+
+    const paymentHistoryHtml = paymentEntries.length === 0
+      ? `<p style="color: #64748b; font-style: italic; font-size: 13px; margin: 0; padding: 12px; background: #f8fafc; border-radius: 8px; text-align: center;">No payment recorded yet.</p>`
+      : `
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px;">
+          <thead>
+            <tr style="background: #f1f5f9; text-align: left; color: #475569;">
+              <th style="padding: 8px 12px; border-bottom: 1px solid #cbd5e1;">Date</th>
+              <th style="padding: 8px 12px; border-bottom: 1px solid #cbd5e1;">Method</th>
+              <th style="padding: 8px 12px; border-bottom: 1px solid #cbd5e1;">Description</th>
+              <th style="padding: 8px 12px; border-bottom: 1px solid #cbd5e1; text-align: right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${paymentEntries.map((pe) => `
+              <tr>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #334155;">${formatShortDate(pe.created_at)}</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #334155; text-transform: uppercase; font-weight: 600;">${escapeHtml(pe.payment_method || pe.paymentMethod || 'UPI')}</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #64748b;">${escapeHtml(pe.description || pe.note || 'Payment')}</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: #16a34a;">${formatCurrency(pe.amount)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+    const htmlDoc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Booking Statement — ${escapeHtml(booking.guest_name)} (#${shortId})</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #0f172a;
+      background: #f8fafc;
+      margin: 0;
+      padding: 24px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .header {
+      border-bottom: 2px solid #047857;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .header h1 {
+      margin: 0;
+      color: #064e3b;
+      font-size: 22px;
+      letter-spacing: -0.5px;
+    }
+    .header .subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #047857;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 24px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .info-card {
+      background: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    .info-card .label {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .info-card .value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-top: 2px;
+    }
+    .financial-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-top: 8px;
+    }
+    .finance-card {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      text-align: center;
+    }
+    .finance-card.total { background: #f8fafc; }
+    .finance-card.paid { background: #f0fdf4; border-color: #bbf7d0; }
+    .finance-card.pending { background: #fff1f2; border-color: #fecdd3; }
+    .action-bar {
+      margin-bottom: 20px;
+      text-align: right;
+    }
+    .btn-print {
+      background: #047857;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      .container { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+      .no-print { display: none !important; }
+      @page { margin: 1.5cm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="action-bar no-print">
+      <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    </div>
+
+    <div class="header">
+      <div>
+        <h1>HOMESTAY HELPER</h1>
+        <div class="subtitle">BOOKING DETAILS</div>
+        <div style="font-size: 12px; color: #475569; margin-top: 4px;"><strong>Property:</strong> ${escapeHtml(propertyName)}</div>
+      </div>
+      <div style="text-align: right; font-size: 12px; color: #64748b;">
+        <div><strong>Booking ID:</strong> #${escapeHtml(shortId)}</div>
+        <div style="margin-top: 2px;">Generated: ${escapeHtml(generatedAt)}</div>
+        <div style="margin-top: 4px;">
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; background: ${paymentStatus === 'PAID' ? '#dcfce7' : (paymentStatus === 'PARTIALLY PAID' ? '#fef3c7' : '#fee2e2')}; color: ${paymentStatus === 'PAID' ? '#15803d' : (paymentStatus === 'PARTIALLY PAID' ? '#b45309' : '#b91c1c')};">
+            ${escapeHtml(paymentStatus)}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">BOOKING DETAILS</div>
+    <div class="grid-2">
+      <div class="info-card">
+        <div class="label">Property Name</div>
+        <div class="value">${escapeHtml(propertyName)}</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Guest / Booking Name</div>
+        <div class="value">${escapeHtml(booking.guest_name || 'Guest')}</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Room Number / Name</div>
+        <div class="value">${escapeHtml(roomName)}</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Room Category / Rate</div>
+        <div class="value">${booking.room_price ? formatCurrency(booking.room_price) + ' / night' : 'Standard'}</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Check-in Date</div>
+        <div class="value">${escapeHtml(checkInFormatted)}</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Check-out Date</div>
+        <div class="value">${escapeHtml(checkOutFormatted)} (${nights} ${nights === 1 ? 'night' : 'nights'})</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Booking Status</div>
+        <div class="value" style="text-transform: capitalize;">${escapeHtml(booking.status || 'Active')}</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Number of Guests</div>
+        <div class="value">${guestsList.length} ${guestsList.length === 1 ? 'Guest' : 'Guests'}</div>
+      </div>
+      ${booking.guest_phone ? `
+      <div class="info-card">
+        <div class="label">Phone Number</div>
+        <div class="value">${escapeHtml(booking.guest_phone)}</div>
+      </div>
+      ` : ''}
+    </div>
+
+    <div class="section-title">BOOKING / CHARGE</div>
+    <div class="grid-2" style="margin-bottom: 8px;">
+      <div class="info-card">
+        <div class="label">Room Charge (${nights} ${nights === 1 ? 'night' : 'nights'})</div>
+        <div class="value">${escapeHtml(totalAmountStr)}</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Final Amount</div>
+        <div class="value" style="color: #064e3b; font-weight: 700;">${escapeHtml(totalAmountStr)}</div>
+      </div>
+    </div>
+
+    <div class="section-title">PAYMENT</div>
+    <div class="financial-grid">
+      <div class="finance-card paid">
+        <div class="label" style="font-size: 11px; color: #166534; font-weight: 600;">TOTAL PAID</div>
+        <div style="font-size: 18px; font-weight: 700; color: #166534; margin-top: 4px;">${escapeHtml(paidAmountStr)}</div>
+      </div>
+      <div class="finance-card pending">
+        <div class="label" style="font-size: 11px; color: #991b1b; font-weight: 600;">PENDING AMOUNT</div>
+        <div style="font-size: 18px; font-weight: 700; color: #991b1b; margin-top: 4px;">${escapeHtml(pendingAmountStr)}</div>
+      </div>
+      <div class="finance-card total">
+        <div class="label" style="font-size: 11px; color: #64748b; font-weight: 600;">PAYMENT STATUS</div>
+        <div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 6px; text-transform: uppercase;">${escapeHtml(paymentStatus)}</div>
+      </div>
+    </div>
+
+    <div class="section-title">PAYMENT HISTORY</div>
+    ${paymentHistoryHtml}
+
+    <div class="section-title">GUEST DETAILS (${guestsList.length})</div>
+    ${guestsHtml}
+
+    <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8;">
+      This is a computer-generated booking statement from Homestay Helper. All information is confidential to property ownership.
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeGuest = (booking.guest_name || 'Guest').replace(/[^a-zA-Z0-9]/g, '_');
+    a.download = `Booking_${safeGuest}_${shortId}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
 
   // Loading skeleton
   if (loading) {
@@ -1014,11 +1465,20 @@ export default function BookingsLedger() {
       {/* ========================================================================= */}
       {/* 3. GUEST DETAIL MODAL                                                     */}
       {/* ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* 3. BOOKING DETAILS MODAL                                                  */}
+      {/* ========================================================================= */}
       {currentSelectedBooking && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-[#0f1d17] border border-slate-200 dark:border-emerald-900/50 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-5 my-8">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-emerald-900/30 pb-4">
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setSelectedBooking(null)}
+        >
+          <div
+            className="bg-white dark:bg-[#0f1d17] border border-slate-200 dark:border-emerald-900/50 rounded-2xl max-w-lg w-full shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header (Pinned at top) */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-emerald-900/30 p-5 sm:p-6 pb-4 shrink-0">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -1044,167 +1504,343 @@ export default function BookingsLedger() {
                   <span className="font-semibold text-slate-700 dark:text-slate-300">{currentSelectedBooking.room_name || 'Room'}</span>
                   <span>•</span>
                   <span>{formatShortDate(currentSelectedBooking.check_in)} → {formatShortDate(currentSelectedBooking.check_out)}</span>
-                  <span>•</span>
-                  <span className="inline-flex items-center gap-1">
-                    <Phone className="w-3 h-3" />
-                    {currentSelectedBooking.guest_phone}
-                  </span>
+                  {currentSelectedBooking.guest_phone && (
+                    <>
+                      <span>•</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {currentSelectedBooking.guest_phone}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
               <button
+                type="button"
                 onClick={() => setSelectedBooking(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* BOOKING SECTION */}
-            <div className="space-y-2">
-              <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                BOOKING
-              </div>
-              <div className="bg-slate-50 dark:bg-[#0b1612] p-3 rounded-xl border border-slate-200/60 dark:border-emerald-900/30 space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                  <span>Room charge ({currentSelectedBooking.nights} {currentSelectedBooking.nights === 1 ? 'night' : 'nights'})</span>
-                  <span className="font-semibold">{formatCurrency(currentSelectedBooking.totalAmount)}</span>
+            {/* Modal Body (Scrollable inside the modal) */}
+            <div className="p-5 sm:p-6 py-4 overflow-y-auto space-y-5 flex-1 overscroll-contain">
+              {/* BOOKING SECTION */}
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  BOOKING
                 </div>
-                <div className="border-t border-slate-200/80 dark:border-emerald-900/40 pt-1.5 flex justify-between font-bold text-slate-900 dark:text-white text-sm">
-                  <span>Final amount</span>
-                  <span>{formatCurrency(currentSelectedBooking.totalAmount)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* PAYMENT SECTION */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  PAYMENT
-                </span>
-                {currentSelectedBooking.paymentStatus === 'PAID' && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
-                    🟢 PAID
-                  </span>
-                )}
-                {currentSelectedBooking.paymentStatus === 'PARTIALLY PAID' && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
-                    🟠 PARTIALLY PAID
-                  </span>
-                )}
-                {currentSelectedBooking.paymentStatus === 'PENDING' && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
-                    🔴 PENDING
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-emerald-50/50 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800/30">
-                  <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Paid</div>
-                  <div className="text-base font-bold text-emerald-800 dark:text-emerald-300 mt-0.5">
-                    {formatCurrency(currentSelectedBooking.paidAmount)}
+                <div className="bg-slate-50 dark:bg-[#0b1612] p-3 rounded-xl border border-slate-200/60 dark:border-emerald-900/30 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-300">
+                    <span>Room charge ({currentSelectedBooking.nights} {currentSelectedBooking.nights === 1 ? 'night' : 'nights'})</span>
+                    <span className="font-semibold">{formatCurrency(currentSelectedBooking.totalAmount)}</span>
                   </div>
-                </div>
-
-                <div className="bg-slate-50 dark:bg-[#0b1612] p-2.5 rounded-xl border border-slate-200/60 dark:border-emerald-900/30">
-                  <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Pending</div>
-                  <div className={`text-base font-bold mt-0.5 ${currentSelectedBooking.remainingAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'}`}>
-                    {formatCurrency(currentSelectedBooking.remainingAmount)}
+                  <div className="border-t border-slate-200/80 dark:border-emerald-900/40 pt-1.5 flex justify-between font-bold text-slate-900 dark:text-white text-sm">
+                    <span>Final amount</span>
+                    <span>{formatCurrency(currentSelectedBooking.totalAmount)}</span>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* PAYMENT HISTORY */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  PAYMENT HISTORY
-                </span>
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Total paid: {formatCurrency(currentSelectedBooking.paidAmount)}
-                </span>
-              </div>
-
-              {currentSelectedBooking.paymentEntries.length === 0 ? (
-                <div className="py-4 text-center text-xs text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-[#0b1612] rounded-xl border border-dashed border-slate-200 dark:border-emerald-900/30">
-                  No payment recorded yet.
+              {/* PAYMENT SECTION */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    PAYMENT
+                  </span>
+                  {currentSelectedBooking.paymentStatus === 'PAID' && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+                      🟢 PAID
+                    </span>
+                  )}
+                  {currentSelectedBooking.paymentStatus === 'PARTIALLY PAID' && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
+                      🟠 PARTIALLY PAID
+                    </span>
+                  )}
+                  {currentSelectedBooking.paymentStatus === 'PENDING' && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
+                      🔴 PENDING
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <div className="divide-y divide-slate-100 dark:divide-emerald-900/30 bg-slate-50/60 dark:bg-[#0b1612] rounded-xl border border-slate-200/60 dark:border-emerald-900/30 overflow-hidden max-h-36 overflow-y-auto">
-                  {currentSelectedBooking.paymentEntries.map((pe) => (
-                    <div key={pe.id} className="p-2.5 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500 dark:text-slate-400">{formatShortDate(pe.created_at)}</span>
-                        {(pe.payment_method || pe.paymentMethod) === 'cash' ? (
-                          <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
-                            <Banknote className="w-3 h-3 text-amber-600" />
-                            Cash
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
-                            <CreditCard className="w-3 h-3 text-emerald-600" />
-                            UPI
-                          </span>
-                        )}
-                        {pe.description && pe.description !== 'UPI Payment' && pe.description !== 'Cash Payment' && (
-                          <span className="text-slate-400 text-[11px] truncate max-w-[120px]">
-                            • {pe.description}
-                          </span>
-                        )}
-                      </div>
-                      <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                        {formatCurrency(pe.amount)}
-                      </span>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-emerald-50/50 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-800/30">
+                    <div className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">Paid</div>
+                    <div className="text-base font-bold text-emerald-800 dark:text-emerald-300 mt-0.5">
+                      {formatCurrency(currentSelectedBooking.paidAmount)}
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="bg-slate-50 dark:bg-[#0b1612] p-2.5 rounded-xl border border-slate-200/60 dark:border-emerald-900/30">
+                    <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Pending</div>
+                    <div className={`text-base font-bold mt-0.5 ${currentSelectedBooking.remainingAmount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'}`}>
+                      {formatCurrency(currentSelectedBooking.remainingAmount)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* PAYMENT HISTORY */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    PAYMENT HISTORY
+                  </span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Total paid: {formatCurrency(currentSelectedBooking.paidAmount)}
+                  </span>
+                </div>
+
+                {currentSelectedBooking.paymentEntries.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-[#0b1612] rounded-xl border border-dashed border-slate-200 dark:border-emerald-900/30">
+                    No payment recorded yet.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-emerald-900/30 bg-slate-50/60 dark:bg-[#0b1612] rounded-xl border border-slate-200/60 dark:border-emerald-900/30 overflow-hidden max-h-36 overflow-y-auto">
+                    {currentSelectedBooking.paymentEntries.map((pe) => (
+                      <div key={pe.id} className="p-2.5 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 dark:text-slate-400">{formatShortDate(pe.created_at)}</span>
+                          {(pe.payment_method || pe.paymentMethod) === 'cash' ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+                              <Banknote className="w-3 h-3 text-amber-600" />
+                              Cash
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+                              <CreditCard className="w-3 h-3 text-emerald-600" />
+                              UPI
+                            </span>
+                          )}
+                          {pe.description && pe.description !== 'UPI Payment' && pe.description !== 'Cash Payment' && (
+                            <span className="text-slate-400 text-[11px] truncate max-w-[120px]">
+                              • {pe.description}
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                          {formatCurrency(pe.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* GUEST DETAILS SECTION */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    GUEST DETAILS
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    {modalGuests.length} {modalGuests.length === 1 ? 'Guest' : 'Guests'}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  {modalGuests.map((guest, idx) => {
+                    const hasPhoto = Boolean(guest.id_photo || guest.idPhoto);
+                    const idType = guest.id_type || guest.idType || 'Government ID';
+                    const hasIdNumber = Boolean(guest.id_number || guest.idNumber);
+                    const maskedId = hasIdNumber ? maskIdNumber(guest.id_number || guest.idNumber, idType) : null;
+
+                    return (
+                      <div
+                        key={guest.id || `guest-${idx}`}
+                        className="bg-slate-50 dark:bg-[#0b1612] p-3 rounded-xl border border-slate-200/60 dark:border-emerald-900/30 text-xs space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                            GUEST {idx + 1} {guest.is_primary ? '• PRIMARY' : ''}
+                          </span>
+                          {hasPhoto ? (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+                              ID Uploaded
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                              No Document
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="font-bold text-slate-900 dark:text-white text-sm">
+                          {guest.name || 'Guest'}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 flex-wrap">
+                          <span className="inline-flex items-center gap-1 font-medium">
+                            <Phone className="w-3 h-3 text-slate-400" />
+                            {guest.phone || 'Not provided'}
+                          </span>
+                          {guest.email && (
+                            <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                              <Mail className="w-3 h-3 text-slate-400" />
+                              {guest.email}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-emerald-900/30 gap-2">
+                          <div className="text-slate-600 dark:text-slate-300 truncate">
+                            <span className="text-slate-400 dark:text-slate-500">ID: </span>
+                            <span className="font-medium">{idType}</span>
+                            {maskedId && (
+                              <>
+                                <span className="mx-1 text-slate-400">•</span>
+                                <span className="font-mono text-slate-700 dark:text-slate-300">{maskedId}</span>
+                              </>
+                            )}
+                          </div>
+
+                          {hasPhoto && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingDocumentGuest(guest);
+                              }}
+                              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-100/80 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300 font-semibold text-[11px] transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>View ID</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions Footer (Pinned at bottom) */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-emerald-900/30 bg-slate-50/60 dark:bg-[#0b1612]/60 shrink-0">
+              <div className="flex items-center justify-end gap-3 flex-wrap">
+                {currentSelectedBooking.status === 'upcoming' && (
+                  <button
+                    onClick={() => handleStateTransition('check-in')}
+                    disabled={statusUpdating}
+                    className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <LogInIcon className="w-4 h-4" />
+                    <span>Check-in</span>
+                  </button>
+                )}
+
+                {currentSelectedBooking.status === 'checked_in' && (
+                  <button
+                    onClick={() => handleStateTransition('check-out')}
+                    disabled={statusUpdating}
+                    className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-white font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 border border-slate-700 dark:border-emerald-800"
+                  >
+                    <LogOutIcon className="w-4 h-4" />
+                    <span>Check-out</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => handleDownloadBookingDetails(currentSelectedBooking)}
+                  className="py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                  title="Download booking statement"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download ↓</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ID DOCUMENT PREVIEW MODAL / LIGHTBOX */}
+      {viewingDocumentGuest && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm"
+          style={{ zIndex: 100 }}
+          onClick={() => setViewingDocumentGuest(null)}
+        >
+          <div
+            className="bg-white dark:bg-[#0f1d17] border border-slate-200 dark:border-emerald-900/50 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 flex flex-col max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header: Guest ID \n Guest Name */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-emerald-900/30 pb-3 shrink-0">
+              <div>
+                <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Guest ID
+                </span>
+                <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">
+                  {viewingDocumentGuest.name || 'Guest'}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingDocumentGuest(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body: Actual uploaded ID image or PDF preview */}
+            <div className="flex-1 overflow-auto flex items-center justify-center p-3 bg-slate-100/70 dark:bg-[#07130e] rounded-xl border border-slate-200/80 dark:border-emerald-900/30 min-h-[220px]">
+              {viewingDocumentGuest.id_photo ? (
+                String(viewingDocumentGuest.id_photo).startsWith('data:application/pdf') || String(viewingDocumentGuest.id_photo).endsWith('.pdf') ? (
+                  <div className="text-center p-6 space-y-3">
+                    <FileText className="w-12 h-12 text-emerald-600 mx-auto" />
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      PDF Document Uploaded
+                    </p>
+                    <a
+                      href={viewingDocumentGuest.id_photo}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors shadow-sm"
+                    >
+                      <span>Open ID Document</span>
+                    </a>
+                  </div>
+                ) : (
+                  <img
+                    src={viewingDocumentGuest.id_photo}
+                    alt={`ID Document for ${viewingDocumentGuest.name}`}
+                    className="max-h-[60vh] max-w-full w-auto object-contain rounded-lg shadow-xs"
+                  />
+                )
+              ) : (
+                <div className="py-12 text-center text-xs font-medium text-slate-400 dark:text-slate-500">
+                  No ID document uploaded
                 </div>
               )}
             </div>
 
-            {/* Modal Actions */}
-            <div className="pt-2 flex items-center gap-2.5 flex-wrap">
-              {currentSelectedBooking.remainingAmount > 0 && (
-                <button
-                  onClick={() => {
-                    setPaymentForm({
-                      amount: String(currentSelectedBooking.remainingAmount),
-                      paymentMethod: 'upi',
-                      note: ''
-                    });
-                    setPaymentError('');
-                    setShowPaymentModal(true);
-                  }}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Add Payment</span>
-                </button>
-              )}
-
-              {currentSelectedBooking.status === 'upcoming' && (
-                <button
-                  onClick={() => handleStateTransition('check-in')}
-                  disabled={statusUpdating}
-                  className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  <LogInIcon className="w-4 h-4" />
-                  <span>Check-in</span>
-                </button>
-              )}
-
-              {currentSelectedBooking.status === 'checked_in' && (
-                <button
-                  onClick={() => handleStateTransition('check-out')}
-                  disabled={statusUpdating}
-                  className="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-white font-bold text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 border border-slate-700 dark:border-emerald-800"
-                >
-                  <LogOutIcon className="w-4 h-4" />
-                  <span>Check-out</span>
-                </button>
-              )}
+            {/* Footer: Government ID \n [ Close ] */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-emerald-900/30 shrink-0">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                  {viewingDocumentGuest.id_type || 'Government ID'}
+                </span>
+                {viewingDocumentGuest.id_number && (
+                  <span className="ml-2 font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                    • {maskIdNumber(viewingDocumentGuest.id_number, viewingDocumentGuest.id_type)}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingDocumentGuest(null)}
+                className="py-2 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold cursor-pointer transition-colors shadow-xs"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
