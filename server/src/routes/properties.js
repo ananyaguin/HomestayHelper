@@ -174,8 +174,14 @@ router.post('/', verifyOwnerJWT, async (req, res) => {
       serializedAmenities
     ]);
 
+    const newProperty = result.rows[0];
+
+    // Automatically provision rooms according to total_rooms
+    const { syncRoomsForProperty } = require('../services/roomService');
+    await syncRoomsForProperty(req.ownerId, newProperty.id);
+
     return res.status(201).json({
-      property: result.rows[0]
+      property: newProperty
     });
   } catch (error) {
     console.error('Error creating property:', error.message);
@@ -313,12 +319,14 @@ router.patch('/:id', verifyOwnerJWT, async (req, res) => {
 
     // If no row was updated, the property either does not exist OR belongs to another owner.
     // Return 404 to avoid leaking existence of cross-owner properties.
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Property not found' });
-    }
+    const updatedProperty = result.rows[0];
+
+    // Synchronize rooms in case total_rooms was updated
+    const { syncRoomsForProperty } = require('../services/roomService');
+    await syncRoomsForProperty(req.ownerId, propertyId);
 
     return res.status(200).json({
-      property: result.rows[0]
+      property: updatedProperty
     });
   } catch (error) {
     console.error('Error updating property:', error.message);

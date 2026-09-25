@@ -193,6 +193,7 @@ export default function OwnerApp({ onLogout }) {
 
   const handlePropertySaved = (savedProp) => {
     const wasOnboarding = isOnboarding || propertiesList.length === 0;
+    const propId = savedProp?.id || activePropertyId;
     if (savedProp && savedProp.id) {
       handleSelectActiveProperty(savedProp.id);
     }
@@ -201,6 +202,9 @@ export default function OwnerApp({ onLogout }) {
     setPropertyViewMode('list');
     setEditingProperty(null);
     fetchProperties();
+    if (propId) {
+      loadRoomsAndBookings(propId);
+    }
     if (wasOnboarding) {
       setActiveTab('tabDashboard');
     }
@@ -821,144 +825,7 @@ export default function OwnerApp({ onLogout }) {
                     </div>
                   </div>
 
-                  {/* ROOM BOOKINGS BY ROOM (A10-FLOW-FIX QR DRIVEN FLOW - REQUIREMENT 13) */}
-                  <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
-                      <div>
-                        <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                          <Key className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                          <span>Room Bookings</span>
-                        </h2>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Active guest bookings and QR check-ins for {activePropertyName}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => loadRoomsAndBookings(activePropertyId)}
-                          title="Refresh Bookings"
-                          className="p-1.5 text-slate-500 hover:text-emerald-600 rounded-lg hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition-colors cursor-pointer"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRooms ? 'animate-spin' : ''}`} />
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('tabRooms')}
-                          className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
-                        >
-                          <span>Room QRs</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
 
-                    {isLoadingRooms && rooms.length === 0 ? (
-                      <div className="py-6 text-center text-xs text-slate-400 animate-pulse">
-                        Loading room booking status...
-                      </div>
-                    ) : rooms.length === 0 ? (
-                      <div className="py-6 text-center text-xs text-slate-500 dark:text-slate-400">
-                        No rooms configured yet for this property.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                        {rooms.map((room) => {
-                          const roomBookings = bookings.filter((b) => b.room_id === room.id);
-                          const activeBooking = roomBookings.find((b) => b.status === 'checked_in');
-                          const upcomingBooking = roomBookings.find((b) => b.status === 'upcoming');
-                          const displayBooking = activeBooking || upcomingBooking || (roomBookings.length > 0 ? roomBookings[0] : null);
-                          const isOccupied = Boolean(activeBooking);
-
-                          return (
-                            <div
-                              key={room.id}
-                              className="border border-slate-200/80 dark:border-emerald-900/50 rounded-xl p-3.5 bg-slate-50/60 dark:bg-[#07130e] flex flex-col justify-between shadow-2xs hover:border-emerald-500/50 transition-all"
-                            >
-                              <div>
-                                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 dark:border-emerald-900/40">
-                                  <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white truncate">
-                                    {room.name}
-                                  </span>
-                                  <span
-                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                                      isOccupied
-                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                        : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                    }`}
-                                  >
-                                    {isOccupied ? 'OCCUPIED' : 'VACANT'}
-                                  </span>
-                                </div>
-
-                                {isOccupied && activeBooking ? (
-                                  <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium my-1">
-                                    <p>
-                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Guest:</span>{' '}
-                                      <strong className="font-semibold text-slate-900 dark:text-white">
-                                        {activeBooking.guest_name}
-                                      </strong>
-                                    </p>
-                                    <p>
-                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Phone:</span>{' '}
-                                      {activeBooking.guest_phone}
-                                    </p>
-                                    <p>
-                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Check-in:</span>{' '}
-                                      {formatDisplayDate(activeBooking.check_in)}
-                                    </p>
-                                    <p>
-                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Check-out:</span>{' '}
-                                      {formatDisplayDate(activeBooking.check_out)}
-                                    </p>
-                                  </div>
-                                ) : upcomingBooking ? (
-                                  <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium my-1">
-                                    <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                                      Upcoming Reservation:
-                                    </p>
-                                    <p>
-                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Guest:</span>{' '}
-                                      <strong className="font-semibold text-slate-900 dark:text-white">
-                                        {upcomingBooking.guest_name}
-                                      </strong>
-                                    </p>
-                                    <p>
-                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Check-in:</span>{' '}
-                                      {formatDisplayDate(upcomingBooking.check_in)}
-                                    </p>
-                                  </div>
-                                ) : (
-                                  <div className="py-3 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1">
-                                    <p className="font-medium text-slate-700 dark:text-slate-300">No active stay</p>
-                                    <p className="text-[11px] text-slate-400">Ready for QR check-in</p>
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-emerald-900/40">
-                                {displayBooking ? (
-                                  <button
-                                    onClick={() => setSelectedBookingForModal({ ...displayBooking, roomName: room.name })}
-                                    className="w-full py-1.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" />
-                                    <span>View Details</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => setShowQrModalRoom(room)}
-                                    className="w-full py-1.5 px-3 rounded-lg bg-slate-200 dark:bg-emerald-950/70 hover:bg-emerald-700 hover:text-white text-slate-700 dark:text-emerald-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                                  >
-                                    <QrCode className="w-3.5 h-3.5" />
-                                    <span>Show Room QR</span>
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
 
                   {/* AI Daily Brief Section */}
                   <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
@@ -1510,17 +1377,6 @@ export default function OwnerApp({ onLogout }) {
                 </div>
               </div>
 
-              {/* Architecture info notice (Adheres to Requirements 3 & 4) */}
-              <div className="p-3.5 bg-emerald-50/70 dark:bg-[#071912] rounded-xl border border-emerald-200/60 dark:border-emerald-900/50 flex items-start gap-2.5 text-xs text-emerald-900 dark:text-emerald-200">
-                <ShieldAlert className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-semibold">QR-Driven Booking Architecture</p>
-                  <p className="text-emerald-800 dark:text-emerald-300 leading-relaxed">
-                    Rooms are permanent property configuration entities. Owners do not manually create rooms during daily operations.
-                    Guests scan the room's permanent QR code to view room details and submit bookings with required ID documents.
-                  </p>
-                </div>
-              </div>
 
               {/* Rooms List */}
               {isLoadingRooms && rooms.length === 0 ? (
