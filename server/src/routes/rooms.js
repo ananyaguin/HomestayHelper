@@ -39,50 +39,19 @@ async function checkPropertyOwnership(req, res, next) {
 router.use(verifyOwnerJWT);
 router.use(checkPropertyOwnership);
 
+const { syncRoomsForProperty } = require('../services/roomService');
+
 /**
  * GET /api/properties/:propertyId/rooms
- * Returns all rooms belonging to the specified property.
+ * Synchronizes room records based on total_rooms and returns all rooms for the property.
  */
 router.get('/', async (req, res) => {
   try {
     const { propertyId } = req.params;
-
-    const query = `
-      SELECT r.id, r.property_id, r.name, r.capacity, r.price, r.description, r.created_at
-      FROM rooms r
-      JOIN properties p ON r.property_id = p.id
-      WHERE r.property_id = $2 AND p.owner_id = $1
-      ORDER BY r.created_at ASC
-    `;
-
-    const result = await scopedQuery(req.ownerId, query, [req.ownerId, propertyId]);
-
-    // If property has no rooms yet, auto-provision default system rooms (Room 101, 102, 103)
-    // to treat rooms as system/property configuration rather than requiring manual creation
-    if (result.rows.length === 0) {
-      const defaultRooms = [
-        { name: 'Room 101 — Deluxe Balcony', capacity: 2, price: 2000.00, description: 'Comfortable double room with valley view' },
-        { name: 'Room 102 — Mountain Suite', capacity: 3, price: 2800.00, description: 'Spacious suite with scenic mountain balcony' },
-        { name: 'Room 103 — Cozy Garden Room', capacity: 2, price: 1800.00, description: 'Quiet ground-floor room facing the tea garden' }
-      ];
-
-      for (const dr of defaultRooms) {
-        await scopedQuery(
-          req.ownerId,
-          `INSERT INTO rooms (property_id, name, capacity, price, description)
-           SELECT p.id, $3, $4, $5, $6
-           FROM properties p
-           WHERE p.id = $2 AND p.owner_id = $1`,
-          [req.ownerId, propertyId, dr.name, dr.capacity, dr.price, dr.description]
-        );
-      }
-
-      const refreshed = await scopedQuery(req.ownerId, query, [req.ownerId, propertyId]);
-      return res.status(200).json({ rooms: refreshed.rows });
-    }
+    const rooms = await syncRoomsForProperty(req.ownerId, propertyId);
 
     return res.status(200).json({
-      rooms: result.rows
+      rooms
     });
   } catch (error) {
     console.error('Error fetching rooms:', error.message);
