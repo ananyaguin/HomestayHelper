@@ -8,11 +8,13 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 function computeBookingStatus(checkIn, checkOut, dbStatus) {
   if (dbStatus === 'cancelled') return 'cancelled';
+  if (dbStatus === 'checked_out') return 'checked_out';
+  if (dbStatus === 'checked_in') return 'checked_in';
   const now = new Date();
   const inDate = new Date(checkIn);
   const outDate = new Date(checkOut);
-  if (now < inDate) return 'upcoming';
-  if (now >= outDate) return 'checked_out';
+  if (!isNaN(inDate.getTime()) && now < inDate) return 'upcoming';
+  if (!isNaN(outDate.getTime()) && now >= outDate) return 'checked_out';
   return 'checked_in';
 }
 
@@ -41,8 +43,8 @@ function formatBooking(row) {
   const status = computeBookingStatus(checkInIso, checkOutIso, row.db_status || row.status);
 
   let nights = 1;
-  const d1 = new Date(checkInStr);
-  const d2 = new Date(checkOutStr);
+  const d1 = new Date(checkInIso);
+  const d2 = new Date(checkOutIso);
   if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
     const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
     nights = Math.max(1, diffDays);
@@ -61,10 +63,15 @@ function formatBooking(row) {
     total_guests: row.total_guests || 1,
     check_in: checkInIso,
     check_out: checkOutIso,
-    check_in_date: checkInIso,
-    check_out_date: checkOutIso,
+    check_in_date: checkInIso.includes('T') ? checkInIso.split('T')[0] : checkInIso,
+    check_out_date: checkOutIso.includes('T') ? checkOutIso.split('T')[0] : checkOutIso,
     status,
     created_at: row.created_at,
+    nights,
+    room_price: roomPrice.toFixed(2),
+    total_amount: totalAmount,
+    totalAmount: parseFloat(totalAmount),
+    guests: Array.isArray(row.guests) ? row.guests : [],
     ...(row.room_name ? { room_name: row.room_name } : {}),
     ...(row.property_id ? { property_id: row.property_id } : {}),
     ...(row.property_name ? { property_name: row.property_name } : {})
@@ -142,7 +149,7 @@ async function getBookings(ownerId) {
     JOIN properties p ON r.property_id = p.id
     LEFT JOIN guests g ON g.booking_id = b.id
     WHERE p.owner_id = $1
-    GROUP BY b.id, r.name, p.id, p.name
+    GROUP BY b.id, r.name, r.price, p.id, p.name
     ORDER BY b.created_at DESC
   `;
 
@@ -168,7 +175,7 @@ async function createBooking(ownerId, data) {
   }
 
   const roomCheckSql = `
-    SELECT r.id, r.property_id, r.price
+    SELECT r.id, r.property_id
     FROM rooms r
     JOIN properties p ON r.property_id = p.id
     WHERE r.id = $1 AND p.owner_id = $2
@@ -180,114 +187,7 @@ async function createBooking(ownerId, data) {
     throw err;
   }
 
-  // 2. Validate guest name
-  const guestName = typeof (data.guest_name || data.guestName) === 'string'
-    ? (data.guest_name || data.guestName).trim()
-    : '';
-  if (!guestName) {
-    const err = new Error('Guest name is required');
-    err.status = 400;
-    throw err;
-  }
-  if (guestName.length > 255) {
-    const err = new Error('Guest name must not exceed 255 characters');
-    err.status = 400;
-    throw err;
-  }
-
-  // 3. Validate guest phone
-  const guestPhone = typeof (data.guest_phone || data.guestPhone) === 'string'
-    ? (data.guest_phone || data.guestPhone).trim()
-    : '';
-  if (!guestPhone) {
-    const err = new Error('Guest phone is required');
-    err.status = 400;
-    throw err;
-  }
-  if (guestPhone.length > 50) {
-    const err = new Error('Guest phone must not exceed 50 characters');
-    err.status = 400;
-    throw err;
-  }
-
-  // 4. Validate check_in and check_out dates
-  const rawCheckIn = data.check_in || data.checkIn || data.check_in_date || data.checkInDate;
-  const rawCheckOut = data.check_out || data.checkOut || data.check_out_date || data.checkOutDate;
-
-  if (!rawCheckIn || !isValidDate(rawCheckIn)) {
-    const err = new Error('Valid check_in date is required (YYYY-MM-DD)');
-    err.status = 400;
-    throw err;
-  }
-  if (!rawCheckOut || !isValidDate(rawCheckOut)) {
-    const err = new Error('Valid check_out date is required (YYYY-MM-DD)');
-    err.status = 400;
-    throw err;
-  }
-
-  const checkIn = normalizeDate(rawCheckIn);
-  const checkOut = normalizeDate(rawCheckOut);
-
-  if (checkOut < checkIn) {
-    const err = new Error('Check-out date must be on or after check-in date');
-    err.status = 400;
-    throw err;
-  }
-
-  // 5. Database transaction for atomic booking + guest creation
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // Create booking strictly with status 'upcoming'
-    const insertBookingSql = `
-      INSERT INTO bookings (room_id, guest_name, guest_phone, check_in, check_out, status)
-      VALUES ($1, $2, $3, $4, $5, 'upcoming')
-      RETURNING id, room_id, guest_name, guest_phone, check_in::text AS check_in, check_out::text AS check_out, status, created_at
-    `;
-    const bookingRes = await client.query(insertBookingSql, [
-      roomId,
-      guestName,
-      guestPhone,
-      checkIn,
-      checkOut
-    ]);
-    const booking = bookingRes.rows[0];
-
-    // Create associated guest row
-    const guestEmail = typeof (data.email || data.guest_email || data.guestEmail) === 'string'
-      ? (data.email || data.guest_email || data.guestEmail).trim() || null
-      : null;
-    const languagePref = typeof (data.language_pref || data.languagePref) === 'string'
-      ? (data.language_pref || data.languagePref).trim() || null
-      : null;
-
-    const insertGuestSql = `
-      INSERT INTO guests (booking_id, name, phone, email, language_pref)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, booking_id, name, phone, email, language_pref, created_at
-    `;
-    const guestRes = await client.query(insertGuestSql, [
-      booking.id,
-      guestName,
-      guestPhone,
-      guestEmail,
-      languagePref
-    ]);
-    const guest = guestRes.rows[0];
-
-    await client.query('COMMIT');
-
-    return {
-      booking: formatBooking(booking),
-      guest
-    };
-  } catch (txErr) {
-    await client.query('ROLLBACK');
-    throw txErr;
-  } finally {
-    client.release();
-  }
+  return createGuestBooking(roomId, data);
 }
 
 /**
@@ -307,7 +207,7 @@ async function updateBooking(ownerId, bookingId, data) {
   }
 
   const findBookingSql = `
-    SELECT b.id, b.room_id, b.status, b.check_in, b.check_out
+    SELECT b.id, b.room_id, b.status, b.check_in, b.check_out, r.name AS room_name, r.price AS room_price, p.id AS property_id, p.name AS property_name
     FROM bookings b
     JOIN rooms r ON b.room_id = r.id
     JOIN properties p ON r.property_id = p.id
@@ -349,8 +249,8 @@ async function updateBooking(ownerId, bookingId, data) {
   const rawCheckIn = data.check_in !== undefined ? data.check_in : data.checkIn;
   const rawCheckOut = data.check_out !== undefined ? data.check_out : data.checkOut;
 
-  let finalCheckInIso = existingBooking.check_in.toISOString();
-  let finalCheckOutIso = existingBooking.check_out.toISOString();
+  let finalCheckInIso = existingBooking.check_in instanceof Date ? existingBooking.check_in.toISOString() : String(existingBooking.check_in);
+  let finalCheckOutIso = existingBooking.check_out instanceof Date ? existingBooking.check_out.toISOString() : String(existingBooking.check_out);
 
   if (rawCheckIn !== undefined) {
     const parsedIn = parseTimestamp(rawCheckIn, '14:00');
@@ -387,6 +287,29 @@ async function updateBooking(ownerId, bookingId, data) {
     await checkRoomOverlap(pool, existingBooking.room_id, finalCheckInIso, finalCheckOutIso, bookingId);
   }
 
+  // Room id change if provided
+  const rawRoomId = data.room_id !== undefined ? data.room_id : data.roomId;
+  if (rawRoomId !== undefined) {
+    if (!UUID_REGEX.test(rawRoomId)) {
+      const err = new Error('Room not found');
+      err.status = 404;
+      throw err;
+    }
+    const roomCheckSql = `
+      SELECT r.id FROM rooms r
+      JOIN properties p ON r.property_id = p.id
+      WHERE r.id = $1 AND p.owner_id = $2
+    `;
+    const roomCheck = await pool.query(roomCheckSql, [rawRoomId, ownerId]);
+    if (roomCheck.rows.length === 0) {
+      const err = new Error('Room not found');
+      err.status = 404;
+      throw err;
+    }
+    values.push(rawRoomId);
+    setClauses.push(`room_id = $${values.length}`);
+  }
+
   if (setClauses.length === 0) {
     const err = new Error('No editable fields provided for update');
     err.status = 400;
@@ -403,36 +326,141 @@ async function updateBooking(ownerId, bookingId, data) {
 
   const updateRes = await pool.query(updateSql, values);
   return {
-    booking: formatBooking(updateRes.rows[0])
+    booking: formatBooking({
+      ...updateRes.rows[0],
+      room_name: existingBooking.room_name,
+      room_price: existingBooking.room_price,
+      property_id: existingBooking.property_id,
+      property_name: existingBooking.property_name
+    })
   };
 }
 
 /**
- * Legacy Check-in handler (kept as no-op or status reflector)
+ * Check-in state transition:
+ * Only 'upcoming' -> 'checked_in' is permitted.
  */
 async function checkIn(ownerId, bookingId) {
-  const bookings = await getBookings(ownerId);
-  const b = bookings.find(item => item.id === bookingId);
-  if (!b) {
+  if (!ownerId) {
+    const err = new Error('Unauthorized');
+    err.status = 401;
+    throw err;
+  }
+
+  if (!bookingId || !UUID_REGEX.test(bookingId)) {
     const err = new Error('Booking not found');
     err.status = 404;
     throw err;
   }
-  return { booking: b };
+
+  // 1. Verify ownership
+  const findSql = `
+    SELECT b.id, b.status, b.check_in, b.check_out, r.name AS room_name, r.price AS room_price, p.id AS property_id, p.name AS property_name
+    FROM bookings b
+    JOIN rooms r ON b.room_id = r.id
+    JOIN properties p ON r.property_id = p.id
+    WHERE b.id = $1 AND p.owner_id = $2
+  `;
+  const findRes = await pool.query(findSql, [bookingId, ownerId]);
+  if (findRes.rows.length === 0) {
+    const err = new Error('Booking not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const currentStatus = findRes.rows[0].status;
+
+  // 2. Validate transition
+  if (currentStatus !== 'upcoming') {
+    const err = new Error(`Booking cannot be checked in from its current state ('${currentStatus}')`);
+    err.status = 400;
+    throw err;
+  }
+
+  // 3. Update status to 'checked_in'
+  const updateSql = `
+    UPDATE bookings
+    SET status = 'checked_in'
+    WHERE id = $1
+    RETURNING id, room_id, guest_name, guest_phone, check_in, check_out, total_guests, status, created_at
+  `;
+  const updateRes = await pool.query(updateSql, [bookingId]);
+  return {
+    booking: formatBooking({
+      ...updateRes.rows[0],
+      room_name: findRes.rows[0].room_name,
+      room_price: findRes.rows[0].room_price,
+      property_id: findRes.rows[0].property_id,
+      property_name: findRes.rows[0].property_name
+    })
+  };
 }
 
 /**
- * Legacy Check-out handler (kept as no-op or status reflector)
+ * Check-out state transition:
+ * Only 'checked_in' -> 'checked_out' is permitted.
+ * 'upcoming' -> 'checked_out' must return 400 Bad Request.
  */
 async function checkOut(ownerId, bookingId) {
-  const bookings = await getBookings(ownerId);
-  const b = bookings.find(item => item.id === bookingId);
-  if (!b) {
+  if (!ownerId) {
+    const err = new Error('Unauthorized');
+    err.status = 401;
+    throw err;
+  }
+
+  if (!bookingId || !UUID_REGEX.test(bookingId)) {
     const err = new Error('Booking not found');
     err.status = 404;
     throw err;
   }
-  return { booking: b };
+
+  // 1. Verify ownership
+  const findSql = `
+    SELECT b.id, b.status, b.check_in, b.check_out, r.name AS room_name, r.price AS room_price, p.id AS property_id, p.name AS property_name
+    FROM bookings b
+    JOIN rooms r ON b.room_id = r.id
+    JOIN properties p ON r.property_id = p.id
+    WHERE b.id = $1 AND p.owner_id = $2
+  `;
+  const findRes = await pool.query(findSql, [bookingId, ownerId]);
+  if (findRes.rows.length === 0) {
+    const err = new Error('Booking not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const currentStatus = findRes.rows[0].status;
+
+  // 2. Validate transition
+  if (currentStatus === 'upcoming') {
+    const err = new Error('Cannot check out a booking that is not checked in');
+    err.status = 400;
+    throw err;
+  }
+
+  if (currentStatus !== 'checked_in') {
+    const err = new Error(`Booking cannot be checked out from its current state ('${currentStatus}')`);
+    err.status = 400;
+    throw err;
+  }
+
+  // 3. Update status to 'checked_out'
+  const updateSql = `
+    UPDATE bookings
+    SET status = 'checked_out'
+    WHERE id = $1
+    RETURNING id, room_id, guest_name, guest_phone, check_in, check_out, total_guests, status, created_at
+  `;
+  const updateRes = await pool.query(updateSql, [bookingId]);
+  return {
+    booking: formatBooking({
+      ...updateRes.rows[0],
+      room_name: findRes.rows[0].room_name,
+      room_price: findRes.rows[0].room_price,
+      property_id: findRes.rows[0].property_id,
+      property_name: findRes.rows[0].property_name
+    })
+  };
 }
 
 /**
@@ -481,7 +509,7 @@ async function createGuestBooking(roomId, data) {
 
   // 1. Verify room exists and resolve property
   const roomCheckSql = `
-    SELECT r.id, r.property_id, p.owner_id, p.name AS property_name
+    SELECT r.id, r.name AS room_name, r.capacity, r.price, r.property_id, p.owner_id, p.name AS property_name
     FROM rooms r
     JOIN properties p ON r.property_id = p.id
     WHERE r.id = $1
@@ -492,6 +520,9 @@ async function createGuestBooking(roomId, data) {
     err.status = 404;
     throw err;
   }
+
+  const roomRow = roomCheck.rows[0];
+  const roomPrice = parseFloat(roomRow.price) || 0;
 
   // 2. Validate primary guest name
   const guestName = typeof (data.guest_name || data.guestName || data.name) === 'string'
@@ -521,7 +552,7 @@ async function createGuestBooking(roomId, data) {
     throw err;
   }
 
-  // 5. Calculate check_in and check_out timestamps from server time & stay_duration
+  // 5. Calculate check_in and check_out timestamps
   const durationDays = Math.max(1, parseInt(data.stay_duration || data.stayDuration || data.duration, 10) || 1);
   const now = new Date();
   let checkInIso, checkOutIso;
@@ -547,6 +578,16 @@ async function createGuestBooking(roomId, data) {
     throw err;
   }
 
+  // Calculate nights and booking total
+  const d1 = new Date(checkInIso);
+  const d2 = new Date(checkOutIso);
+  let nights = 1;
+  if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+    const diffDays = Math.round((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+    nights = Math.max(1, diffDays);
+  }
+  const bookingTotal = (nights * roomPrice).toFixed(2);
+
   // 6. Availability / Overlap Check
   await checkRoomOverlap(pool, roomId, checkInIso, checkOutIso);
 
@@ -566,7 +607,9 @@ async function createGuestBooking(roomId, data) {
     ];
   }
 
-  // 5. Database transaction for atomic booking + guest creation
+  const finalTotalGuests = Math.max(totalGuests, inputGuests.length);
+
+  // 7. Database transaction
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -625,21 +668,33 @@ async function createGuestBooking(roomId, data) {
       tokenHash,
       checkOutIso
     ]);
-    const guest = guestRes.rows[0];
+    const guestToken = tokenRes.rows[0];
+
+    // Automatic booking charge entry in ledger_entries
+    const insertChargeSql = `
+      INSERT INTO ledger_entries (booking_id, type, amount, currency, note, description)
+      VALUES ($1, 'charge', $2, 'INR', 'Room booking charge', 'Room booking charge')
+      RETURNING id, booking_id, type, amount, currency, note, description, created_at
+    `;
+    await client.query(insertChargeSql, [booking.id, bookingTotal]);
 
     await client.query('COMMIT');
 
     const formatted = formatBooking({
       ...booking,
+      room_name: roomRow.room_name,
+      room_price: roomPrice,
+      property_id: roomRow.property_id,
+      property_name: roomRow.property_name,
       guests: createdGuests
     });
 
-    booking.room_price = roomPrice;
     return {
       success: true,
       message: 'Booking submitted successfully',
       token: guestToken.token_hash,
       booking: formatted,
+      guest: createdGuests[0],
       guests: createdGuests
     };
   } catch (txErr) {
@@ -759,6 +814,10 @@ async function getGuestStay(token) {
 }
 
 module.exports = {
+  computeBookingStatus,
+  parseTimestamp,
+  formatBooking,
+  checkRoomOverlap,
   getBookings,
   createBooking,
   updateBooking,
