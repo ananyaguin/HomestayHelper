@@ -42,7 +42,14 @@ import {
   BedDouble,
   Plus,
   Pencil,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw,
+  RotateCw,
+  QrCode,
+  Copy,
+  ExternalLink,
+  Check,
+  Eye
 } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -198,6 +205,98 @@ export default function OwnerApp({ onLogout }) {
       setActiveTab('tabDashboard');
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLogout = () => {
+    if (onLogout) onLogout();
+    window.location.href = '/login';
+  };
+
+  // Real Backend Rooms & Bookings State (QR-driven booking flow)
+  const [rooms, setRooms] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [roomQrUrls, setRoomQrUrls] = useState({});
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [selectedBookingForModal, setSelectedBookingForModal] = useState(null);
+  const [showQrModalRoom, setShowQrModalRoom] = useState(null);
+  const [copiedRoomId, setCopiedRoomId] = useState(null);
+  const [copiedRoomLink, setCopiedRoomLink] = useState(null);
+  const [bookingActionLoading, setBookingActionLoading] = useState(false);
+
+  const loadRoomsAndBookings = useCallback(async (propertyId) => {
+    if (!propertyId) return;
+    setIsLoadingRooms(true);
+    try {
+      // 1. Fetch rooms for active property
+      const roomsRes = await api.get(`/api/properties/${propertyId}/rooms`);
+      const fetchedRooms = roomsRes?.rooms || [];
+      setRooms(fetchedRooms);
+
+      // 2. Fetch all bookings for authenticated owner
+      const bookingsRes = await api.get('/api/bookings');
+      const fetchedBookings = bookingsRes?.bookings || [];
+      setBookings(fetchedBookings);
+
+      // 3. Generate QR codes for each room
+      const qrMap = {};
+      for (const room of fetchedRooms) {
+        try {
+          const guestUrl = `${window.location.origin}/guest/room/${room.id}`;
+          const qrDataUrl = await QRCode.toDataURL(guestUrl, {
+            width: 260,
+            margin: 2,
+            color: {
+              dark: '#064e3b',
+              light: '#ffffff'
+            }
+          });
+          qrMap[room.id] = { qrDataUrl, guestUrl };
+        } catch (qrErr) {
+          console.error('Failed to generate QR for room:', room.id, qrErr);
+        }
+      }
+      setRoomQrUrls(qrMap);
+    } catch (err) {
+      console.warn('[OwnerApp] Failed to load rooms or bookings:', err);
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activePropertyId) {
+      loadRoomsAndBookings(activePropertyId);
+    }
+  }, [activePropertyId, loadRoomsAndBookings]);
+
+  const handleBookingCheckIn = async (bookingId) => {
+    try {
+      setBookingActionLoading(true);
+      await api.patch(`/api/bookings/${bookingId}/check-in`);
+      await loadRoomsAndBookings(activePropertyId);
+      if (selectedBookingForModal?.id === bookingId) {
+        setSelectedBookingForModal((prev) => (prev ? { ...prev, status: 'checked_in' } : null));
+      }
+    } catch (err) {
+      alert(err.message || 'Check-in transition failed');
+    } finally {
+      setBookingActionLoading(false);
+    }
+  };
+
+  const handleBookingCheckOut = async (bookingId) => {
+    try {
+      setBookingActionLoading(true);
+      await api.patch(`/api/bookings/${bookingId}/check-out`);
+      await loadRoomsAndBookings(activePropertyId);
+      if (selectedBookingForModal?.id === bookingId) {
+        setSelectedBookingForModal((prev) => (prev ? { ...prev, status: 'checked_out' } : null));
+      }
+    } catch (err) {
+      alert(err.message || 'Check-out transition failed');
+    } finally {
+      setBookingActionLoading(false);
+    }
   };
 
   const activeProperty = propertiesList.find((p) => p.id === activePropertyId) || propertiesList[0] || null;

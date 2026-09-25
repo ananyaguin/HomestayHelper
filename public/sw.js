@@ -32,30 +32,52 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  const isOllamaOrApi = url.pathname.includes('/api/ollama') || url.pathname.startsWith('/api/') || url.port === '11434';
-
-  // 1. Pass-through for non-GET requests (POST, etc.) and Ollama / API requests without caching
-  if (event.request.method !== 'GET' || isOllamaOrApi) {
-    event.respondWith(fetch(event.request));
+  let url;
+  try {
+    url = new URL(event.request.url);
+  } catch {
     return;
   }
 
-  // 2. Stale-While-Revalidate caching strategy for normal static GET assets
+  // 1. Ignore unsupported request schemes (chrome-extension, blob, data, etc.)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return;
+  }
+
+  const isOllamaOrApi = url.pathname.includes('/api/ollama') || url.pathname.startsWith('/api/') || url.port === '11434';
+
+  // 2. Pass-through for non-GET requests and Ollama / API requests without caching or interception
+  if (event.request.method !== 'GET' || isOllamaOrApi) {
+    return;
+  }
+
+  // 3. Stale-While-Revalidate caching strategy for normal static GET assets
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        }
-        return networkResponse;
-      }).catch(() => {
-        // Network failed (Airplane mode / Zero Bars) - fallback to cache silently
-        return cachedResponse;
-      });
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          if (
+            networkResponse &&
+            networkResponse.status === 200 &&
+            (url.protocol === 'http:' || url.protocol === 'https:') &&
+            event.request.method === 'GET'
+          ) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache).catch((err) => {
+                console.warn('[Service Worker] Cache put skipped:', err.message);
+              });
+            }).catch(() => {});
+          }
+          return networkResponse;
+        })
+        .catch((fetchErr) => {
+          // Network failed (Airplane mode / Zero Bars) - fallback to cache silently if available
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          throw fetchErr;
+        });
 
       return cachedResponse || fetchPromise;
     })
