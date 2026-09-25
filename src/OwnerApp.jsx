@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { homestayDB } from './services/db';
 import { api } from './services/api';
 import GuestCommunicator from './components/GuestCommunicator';
@@ -42,7 +42,8 @@ import {
   BedDouble,
   Plus,
   Pencil,
-  CheckCircle2
+  CheckCircle2,
+  RotateCw
 } from 'lucide-react';
 
 export default function OwnerApp({ onLogout }) {
@@ -74,6 +75,7 @@ export default function OwnerApp({ onLogout }) {
 
   // Property Onboarding & Multi-Property Management State
   const [isLoadingPropertyCheck, setIsLoadingPropertyCheck] = useState(true);
+  const [propertyFetchError, setPropertyFetchError] = useState(null);
   const [hasProperty, setHasProperty] = useState(false);
   const [propertiesList, setPropertiesList] = useState([]);
   const [activePropertyId, setActivePropertyId] = useState(null);
@@ -81,55 +83,41 @@ export default function OwnerApp({ onLogout }) {
   const [editingProperty, setEditingProperty] = useState(null);
   const [isOnboarding, setIsOnboarding] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
-    async function checkPropertyStatus() {
-      setIsLoadingPropertyCheck(true);
-      try {
-        const response = await api.get('/api/properties');
-        if (isMounted) {
-          if (response && Array.isArray(response.properties) && response.properties.length > 0) {
-            setPropertiesList(response.properties);
-            setHasProperty(true);
-            setActivePropertyId(response.properties[0].id);
-            setIsOnboarding(false);
-            setPropertyViewMode('list');
-          } else {
-            setPropertiesList([]);
-            setHasProperty(false);
-            setActivePropertyId(null);
-            setIsOnboarding(true);
-            setPropertyViewMode('form');
-            setEditingProperty(null);
-            setActiveTab('tabProperty');
-          }
+  const fetchProperties = useCallback(async () => {
+    setIsLoadingPropertyCheck(true);
+    setPropertyFetchError(null);
+    try {
+      const response = await api.get('/api/properties');
+      if (response && Array.isArray(response.properties)) {
+        setPropertiesList(response.properties);
+        if (response.properties.length > 0) {
+          setHasProperty(true);
+          setActivePropertyId((prevId) => {
+            const exists = response.properties.some((p) => p.id === prevId);
+            return exists ? prevId : response.properties[0].id;
+          });
+          setIsOnboarding(false);
+        } else {
+          setPropertiesList([]);
+          setHasProperty(false);
+          setActivePropertyId(null);
         }
-      } catch (err) {
-        console.warn('[OwnerApp] Failed to check property status from backend:', err);
-        if (isMounted) {
-          if (propertiesList.length > 0) {
-            setHasProperty(true);
-            setIsOnboarding(false);
-            setPropertyViewMode('list');
-          } else {
-            setHasProperty(false);
-            setIsOnboarding(true);
-            setPropertyViewMode('form');
-            setEditingProperty(null);
-            setActiveTab('tabProperty');
-          }
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingPropertyCheck(false);
-        }
+      } else {
+        setPropertiesList([]);
+        setHasProperty(false);
+        setActivePropertyId(null);
       }
+    } catch (err) {
+      console.error('[OwnerApp] Failed to fetch properties from backend:', err);
+      setPropertyFetchError(err.message || 'Failed to load properties from server. Please check connection.');
+    } finally {
+      setIsLoadingPropertyCheck(false);
     }
-    checkPropertyStatus();
-    return () => {
-      isMounted = false;
-    };
   }, []);
+
+  useEffect(() => {
+    fetchProperties();
+  }, [fetchProperties]);
 
   const handlePropertySaved = (savedProp) => {
     const propId = savedProp?.id || editingProperty?.id || 'prop_' + Date.now();
@@ -1024,18 +1012,59 @@ export default function OwnerApp({ onLogout }) {
                       </div>
                       <div>
                         <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                          Property Setup
+                          Property Setup & Management
                         </h2>
                         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                          Manage your homestay properties, edit details, or add a new property listing.
+                          Manage your homestay properties loaded directly from server.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Property Cards Grid */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Error State Banner */}
+                  {propertyFetchError && (
+                    <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-900 dark:text-rose-200 animate-fadeIn">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+                        <span className="text-xs sm:text-sm font-semibold">{propertyFetchError}</span>
+                      </div>
+                      <button
+                        onClick={fetchProperties}
+                        className="px-3.5 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 self-start sm:self-auto min-h-[38px]"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Retry</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Loading State Skeleton / Spinner */}
+                  {isLoadingPropertyCheck ? (
+                    <div className="p-8 rounded-2xl bg-white dark:bg-[#0f1d17] border border-slate-200/80 dark:border-emerald-900/40 text-center space-y-3">
+                      <div className="w-8 h-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin mx-auto" />
+                      <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        Loading properties from server...
+                      </p>
+                    </div>
+                  ) : (
+                    /* Property Cards Grid */
+                    <div className="space-y-4">
+                      {/* Empty State Banner */}
+                      {propertiesList.length === 0 && !propertyFetchError && (
+                        <div className="p-6 rounded-2xl bg-white dark:bg-[#0f1d17] border border-slate-200/80 dark:border-emerald-900/40 text-center space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-700 dark:text-emerald-300 mx-auto">
+                            <Building2 className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-bold text-slate-900 dark:text-white">No Properties Found</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                              No homestays registered under your account yet. Click "+ Add New Property" below to get started.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {propertiesList.map((prop) => {
                         const isActive = prop.id === activePropertyId;
                         const roomCount = prop.total_rooms || prop.totalRooms || 4;
@@ -1118,6 +1147,7 @@ export default function OwnerApp({ onLogout }) {
                       </div>
                     </div>
                   </div>
+                  )}
                 </div>
               )}
             </div>
