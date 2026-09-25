@@ -78,10 +78,26 @@ export default function OwnerApp({ onLogout }) {
   const [propertyFetchError, setPropertyFetchError] = useState(null);
   const [hasProperty, setHasProperty] = useState(false);
   const [propertiesList, setPropertiesList] = useState([]);
-  const [activePropertyId, setActivePropertyId] = useState(null);
+  const [activePropertyId, setActivePropertyId] = useState(() => {
+    if (typeof sessionStorage !== 'undefined') {
+      return sessionStorage.getItem('activePropertyId') || null;
+    }
+    return null;
+  });
   const [propertyViewMode, setPropertyViewMode] = useState('list'); // 'list' | 'form'
   const [editingProperty, setEditingProperty] = useState(null);
   const [isOnboarding, setIsOnboarding] = useState(false);
+
+  const handleSelectActiveProperty = (id) => {
+    setActivePropertyId(id);
+    if (typeof sessionStorage !== 'undefined') {
+      if (id) {
+        sessionStorage.setItem('activePropertyId', id);
+      } else {
+        sessionStorage.removeItem('activePropertyId');
+      }
+    }
+  };
 
   const fetchProperties = useCallback(async () => {
     setIsLoadingPropertyCheck(true);
@@ -92,20 +108,34 @@ export default function OwnerApp({ onLogout }) {
         setPropertiesList(response.properties);
         if (response.properties.length > 0) {
           setHasProperty(true);
-          setActivePropertyId((prevId) => {
-            const exists = response.properties.some((p) => p.id === prevId);
-            return exists ? prevId : response.properties[0].id;
-          });
+          const storedId = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('activePropertyId') : null;
+          const exists = response.properties.some((p) => p.id === storedId);
+          let targetActiveId;
+          if (exists && storedId) {
+            targetActiveId = storedId;
+          } else {
+            targetActiveId = response.properties[0].id;
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem('activePropertyId', targetActiveId);
+            }
+          }
+          setActivePropertyId(targetActiveId);
           setIsOnboarding(false);
         } else {
           setPropertiesList([]);
           setHasProperty(false);
           setActivePropertyId(null);
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('activePropertyId');
+          }
         }
       } else {
         setPropertiesList([]);
         setHasProperty(false);
         setActivePropertyId(null);
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem('activePropertyId');
+        }
       }
     } catch (err) {
       console.error('[OwnerApp] Failed to fetch properties from backend:', err);
@@ -120,6 +150,9 @@ export default function OwnerApp({ onLogout }) {
   }, [fetchProperties]);
 
   const handlePropertySaved = (savedProp) => {
+    if (savedProp && savedProp.id) {
+      handleSelectActiveProperty(savedProp.id);
+    }
     fetchProperties();
     setHasProperty(true);
     setPropertyViewMode('list');
@@ -1044,7 +1077,7 @@ export default function OwnerApp({ onLogout }) {
                         return (
                           <div
                             key={prop.id}
-                            onClick={() => setActivePropertyId(prop.id)}
+                            onClick={() => handleSelectActiveProperty(prop.id)}
                             className={`p-5 rounded-2xl transition-all cursor-pointer relative flex flex-col justify-between group ${
                               isActive
                                 ? 'bg-emerald-50/60 dark:bg-emerald-950/40 border-2 border-emerald-600 dark:border-emerald-400 shadow-sm'
