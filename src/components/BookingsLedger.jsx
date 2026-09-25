@@ -20,7 +20,9 @@ import {
   ChevronRight,
   TrendingUp,
   TrendingDown,
-  DollarSign
+  DollarSign,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 
 const EXPENSE_CATEGORIES = [
@@ -83,6 +85,24 @@ export default function BookingsLedger() {
   });
   const [expenseSubmitting, setExpenseSubmitting] = useState(false);
   const [expenseError, setExpenseError] = useState('');
+
+  // Edit Expense States
+  const [showEditExpenseModal, setShowEditExpenseModal] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState('');
+  const [editExpenseForm, setEditExpenseForm] = useState({
+    category: 'Groceries',
+    amount: '',
+    paymentMethod: 'cash',
+    note: ''
+  });
+  const [editExpenseSubmitting, setEditExpenseSubmitting] = useState(false);
+  const [editExpenseError, setEditExpenseError] = useState('');
+
+  // Delete Expense States
+  const [showDeleteExpenseModal, setShowDeleteExpenseModal] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState('');
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // Status transition loader
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -394,6 +414,108 @@ export default function BookingsLedger() {
       setExpenseError(err.message || 'Failed to save expense');
     } finally {
       setExpenseSubmitting(false);
+    }
+  };
+
+  /**
+   * Opens Edit Expense modal populated with target or first expense
+   */
+  const handleOpenEditExpense = (expenseToEdit = null) => {
+    if (expenses.length === 0) {
+      alert('No expenses recorded yet. Tap "+ Add Expense" to record one.');
+      return;
+    }
+    const target = expenseToEdit || expenses[0];
+    setEditingExpenseId(target.id);
+    setEditExpenseForm({
+      category: target.category || 'Groceries',
+      amount: String(target.amount || ''),
+      paymentMethod: (target.payment_method || target.paymentMethod || 'cash').toLowerCase(),
+      note: target.note || ''
+    });
+    setEditExpenseError('');
+    setShowEditExpenseModal(true);
+  };
+
+  /**
+   * Switches which expense is being edited in the Edit Expense modal
+   */
+  const handleSelectExpenseToEdit = (id) => {
+    const target = expenses.find((e) => e.id === id);
+    if (!target) return;
+    setEditingExpenseId(target.id);
+    setEditExpenseForm({
+      category: target.category || 'Groceries',
+      amount: String(target.amount || ''),
+      paymentMethod: (target.payment_method || target.paymentMethod || 'cash').toLowerCase(),
+      note: target.note || ''
+    });
+    setEditExpenseError('');
+  };
+
+  /**
+   * Submits edited expense to PATCH /api/expenses/:id
+   */
+  const handleUpdateExpense = async (e) => {
+    e.preventDefault();
+    if (!editingExpenseId) return;
+    setEditExpenseError('');
+
+    const amountNum = Number(editExpenseForm.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setEditExpenseError('Please enter a valid expense amount greater than ₹0');
+      return;
+    }
+
+    setEditExpenseSubmitting(true);
+    try {
+      await api.patch(`/api/expenses/${editingExpenseId}`, {
+        category: editExpenseForm.category,
+        amount: amountNum,
+        payment_method: editExpenseForm.paymentMethod,
+        note: editExpenseForm.note.trim() || null
+      });
+
+      setShowEditExpenseModal(false);
+      await loadData();
+    } catch (err) {
+      console.error('Error updating expense:', err);
+      setEditExpenseError(err.message || 'Failed to update expense');
+    } finally {
+      setEditExpenseSubmitting(false);
+    }
+  };
+
+  /**
+   * Opens Delete Expense confirmation modal
+   */
+  const handleOpenDeleteExpense = (expenseToDelete = null) => {
+    if (expenses.length === 0) {
+      alert('No expenses recorded yet to delete.');
+      return;
+    }
+    const target = expenseToDelete || expenses[0];
+    setDeletingExpenseId(target.id);
+    setDeleteError('');
+    setShowDeleteExpenseModal(true);
+  };
+
+  /**
+   * Submits expense deletion to DELETE /api/expenses/:id
+   */
+  const handleConfirmDeleteExpense = async () => {
+    if (!deletingExpenseId) return;
+    setDeleteSubmitting(true);
+    setDeleteError('');
+    try {
+      await api.delete(`/api/expenses/${deletingExpenseId}`);
+      setShowDeleteExpenseModal(false);
+      await loadData();
+    } catch (err) {
+      console.error('Error deleting expense:', err);
+      setDeleteError(err.message || 'Failed to delete expense');
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -710,9 +832,10 @@ export default function BookingsLedger() {
             </div>
           </div>
 
+          {/* Add Expense Button (aligned to the far right) */}
           <button
             onClick={() => setShowExpenseModal(true)}
-            className="px-3.5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold inline-flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+            className="px-3.5 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold inline-flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             <span>Add Expense</span>
@@ -845,7 +968,39 @@ export default function BookingsLedger() {
                         )}
                       </td>
                       <td className={`py-2.5 px-3 text-right font-bold whitespace-nowrap ${t.isExpense ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                        {t.isBooking ? `+${formatCurrency(t.amount)}` : t.isExpense ? `-${formatCurrency(t.amount)}` : formatCurrency(t.amount)}
+                        <div className="flex items-center justify-end gap-2">
+                          <span>
+                            {t.isBooking ? `+${formatCurrency(t.amount)}` : t.isExpense ? `-${formatCurrency(t.amount)}` : formatCurrency(t.amount)}
+                          </span>
+                          {t.isExpense && (
+                            <div className="flex items-center gap-1 opacity-75 hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rawExp = expenses.find((exp) => `expense-${exp.id}` === t.id || exp.id === t.id.replace('expense-', ''));
+                                  if (rawExp) handleOpenEditExpense(rawExp);
+                                }}
+                                title="Edit this expense"
+                                className="p-1 rounded text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rawExp = expenses.find((exp) => `expense-${exp.id}` === t.id || exp.id === t.id.replace('expense-', ''));
+                                  if (rawExp) handleOpenDeleteExpense(rawExp);
+                                }}
+                                title="Delete this expense"
+                                className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1323,6 +1478,285 @@ export default function BookingsLedger() {
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* 5. EDIT EXPENSE MODAL                                                     */}
+      {/* ========================================================================= */}
+      {showEditExpenseModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-[#0f1d17] border border-slate-200 dark:border-emerald-900/50 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-emerald-900/30 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/80 border border-amber-200 dark:border-amber-800/50 flex items-center justify-center text-amber-700 dark:text-amber-400">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Edit Expense
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Modify existing operational expense record
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditExpenseModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Select expense dropdown if multiple exist */}
+            {expenses.length > 1 && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Select Expense to Edit
+                </label>
+                <select
+                  value={editingExpenseId}
+                  onChange={(e) => handleSelectExpenseToEdit(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200 dark:border-emerald-900/40 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:border-emerald-500"
+                >
+                  {expenses.map((exp) => (
+                    <option key={exp.id} value={exp.id}>
+                      {exp.category} — {formatCurrency(exp.amount)} {exp.note ? `(${exp.note})` : ''} • {formatShortDate(exp.created_at)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {editExpenseError && (
+              <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-xs text-rose-700 dark:text-rose-300 font-semibold">
+                {editExpenseError}
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateExpense} className="space-y-4 text-xs">
+              {/* Category */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Category
+                </label>
+                <select
+                  value={editExpenseForm.category}
+                  onChange={(e) => setEditExpenseForm({ ...editExpenseForm, category: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200 dark:border-emerald-900/40 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:border-emerald-500"
+                >
+                  {EXPENSE_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Amount (₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-slate-400 font-bold">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    required
+                    value={editExpenseForm.amount}
+                    onChange={(e) => setEditExpenseForm({ ...editExpenseForm, amount: e.target.value })}
+                    placeholder="e.g. 800"
+                    className="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200 dark:border-emerald-900/40 text-slate-900 dark:text-white text-sm font-semibold focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Payment Method
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={`flex items-center justify-center gap-2 p-2.5 rounded-lg border cursor-pointer font-semibold transition-all ${editExpenseForm.paymentMethod === 'cash' ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-800 dark:text-emerald-300' : 'bg-slate-50 dark:bg-[#0b1612] border-slate-200 dark:border-emerald-900/40 text-slate-700 dark:text-slate-300'}`}>
+                    <input
+                      type="radio"
+                      name="editExpensePaymentMethod"
+                      value="cash"
+                      checked={editExpenseForm.paymentMethod === 'cash'}
+                      onChange={() => setEditExpenseForm({ ...editExpenseForm, paymentMethod: 'cash' })}
+                      className="sr-only"
+                    />
+                    <Banknote className="w-4 h-4 text-amber-600" />
+                    <span>Cash</span>
+                  </label>
+
+                  <label className={`flex items-center justify-center gap-2 p-2.5 rounded-lg border cursor-pointer font-semibold transition-all ${editExpenseForm.paymentMethod === 'upi' ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-800 dark:text-emerald-300' : 'bg-slate-50 dark:bg-[#0b1612] border-slate-200 dark:border-emerald-900/40 text-slate-700 dark:text-slate-300'}`}>
+                    <input
+                      type="radio"
+                      name="editExpensePaymentMethod"
+                      value="upi"
+                      checked={editExpenseForm.paymentMethod === 'upi'}
+                      onChange={() => setEditExpenseForm({ ...editExpenseForm, paymentMethod: 'upi' })}
+                      className="sr-only"
+                    />
+                    <CreditCard className="w-4 h-4 text-emerald-600" />
+                    <span>UPI</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Note
+                </label>
+                <input
+                  type="text"
+                  value={editExpenseForm.note}
+                  onChange={(e) => setEditExpenseForm({ ...editExpenseForm, note: e.target.value })}
+                  placeholder="e.g. 10kg basmati rice, vegetables from market"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200 dark:border-emerald-900/40 text-slate-900 dark:text-white text-xs focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditExpenseModal(false)}
+                  className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editExpenseSubmitting}
+                  className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {editExpenseSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 6. DELETE EXPENSE CONFIRMATION MODAL                                      */}
+      {/* ========================================================================= */}
+      {showDeleteExpenseModal && (() => {
+        const expToDelete = expenses.find((e) => e.id === deletingExpenseId) || expenses[0];
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white dark:bg-[#0f1d17] border border-slate-200 dark:border-rose-900/40 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 my-8">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-emerald-900/30 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800/50 flex items-center justify-center text-rose-700 dark:text-rose-400">
+                    <Trash2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Delete Expense
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Remove operational expense
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteExpenseModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Select expense dropdown if multiple exist */}
+              {expenses.length > 1 && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Select Expense to Delete
+                  </label>
+                  <select
+                    value={deletingExpenseId}
+                    onChange={(e) => setDeletingExpenseId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200 dark:border-emerald-900/40 text-slate-900 dark:text-white text-xs font-medium focus:outline-none focus:border-rose-500"
+                  >
+                    {expenses.map((exp) => (
+                      <option key={exp.id} value={exp.id}>
+                        {exp.category} — {formatCurrency(exp.amount)} {exp.note ? `(${exp.note})` : ''} • {formatShortDate(exp.created_at)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {deleteError && (
+                <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-xs text-rose-700 dark:text-rose-300 font-semibold">
+                  {deleteError}
+                </div>
+              )}
+
+              {/* Confirmation card */}
+              <div className="p-4 rounded-xl bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 space-y-3">
+                <p className="text-sm font-bold text-rose-900 dark:text-rose-200">
+                  Are you sure you want to delete this expense?
+                </p>
+
+                {expToDelete && (
+                  <div className="p-3 rounded-lg bg-white dark:bg-[#0b1612] border border-rose-100 dark:border-rose-900/30 space-y-1.5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 dark:text-slate-400">Category & Note</span>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        {expToDelete.category} {expToDelete.note ? `(${expToDelete.note})` : ''}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 dark:text-slate-400">Amount</span>
+                      <span className="font-bold text-rose-600 dark:text-rose-400 text-sm">
+                        {formatCurrency(expToDelete.amount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 dark:text-slate-400">Payment & Date</span>
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {(expToDelete.payment_method || expToDelete.paymentMethod || 'cash').toUpperCase()} • {formatShortDate(expToDelete.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  This expense will be permanently deleted from the database. Financial totals and transaction list will recalculate automatically.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteExpenseModal(false)}
+                  className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteExpense}
+                  disabled={deleteSubmitting}
+                  className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold cursor-pointer shadow-sm disabled:opacity-50 text-xs inline-flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{deleteSubmitting ? 'Deleting...' : 'Delete'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

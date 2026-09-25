@@ -141,4 +141,133 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * PATCH /api/expenses/:id
+ * Updates an existing expense scoped strictly to the authenticated owner.
+ * Returns 404 if nonexistent or owned by another owner.
+ */
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || !UUID_REGEX.test(id)) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    // 1. Verify expense exists and belongs to the authenticated owner
+    const checkSql = `
+      SELECT e.id, e.property_id, e.category, e.amount, e.payment_method, e.note
+      FROM expenses e
+      JOIN properties p ON e.property_id = p.id
+      WHERE e.id = $1 AND p.owner_id = $2
+    `;
+    const checkRes = await pool.query(checkSql, [id, req.ownerId]);
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    const body = req.body || {};
+    const setClauses = [];
+    const values = [];
+
+    // Category
+    if (body.category !== undefined) {
+      if (typeof body.category !== 'string' || body.category.trim().length === 0) {
+        return res.status(400).json({ error: 'Expense category cannot be empty' });
+      }
+      values.push(body.category.trim());
+      setClauses.push(`category = $${values.length}`);
+    }
+
+    // Amount
+    if (body.amount !== undefined) {
+      const amountNum = Number(body.amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        return res.status(400).json({ error: 'Amount must be a valid positive number' });
+      }
+      values.push(amountNum);
+      setClauses.push(`amount = $${values.length}`);
+    }
+
+    // Payment Method
+    const rawMethod = body.payment_method !== undefined ? body.payment_method : body.paymentMethod;
+    if (rawMethod !== undefined) {
+      if (typeof rawMethod !== 'string') {
+        return res.status(400).json({ error: 'Payment method must be cash or upi' });
+      }
+      const norm = rawMethod.trim().toLowerCase();
+      if (norm !== 'cash' && norm !== 'upi') {
+        return res.status(400).json({ error: 'Payment method must be cash or upi' });
+      }
+      values.push(norm);
+      setClauses.push(`payment_method = $${values.length}`);
+    }
+
+    // Note
+    const rawNote = body.note !== undefined ? body.note : body.notes;
+    if (rawNote !== undefined) {
+      const noteStr = typeof rawNote === 'string' ? rawNote.trim() : null;
+      values.push(noteStr);
+      setClauses.push(`note = $${values.length}`);
+    }
+
+    if (setClauses.length === 0) {
+      return res.status(400).json({ error: 'No editable fields provided for update' });
+    }
+
+    values.push(id);
+    const updateSql = `
+      UPDATE expenses
+      SET ${setClauses.join(', ')}
+      WHERE id = $${values.length}
+      RETURNING id, property_id, category, amount, payment_method, note, created_at
+    `;
+
+    const updateRes = await pool.query(updateSql, values);
+    return res.status(200).json({
+      expense: formatExpense(updateRes.rows[0])
+    });
+  } catch (error) {
+    console.error('Error updating expense:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * DELETE /api/expenses/:id
+ * Deletes an existing expense scoped strictly to the authenticated owner.
+ * Returns 404 if nonexistent or owned by another owner.
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || !UUID_REGEX.test(id)) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    const deleteSql = `
+      DELETE FROM expenses e
+      USING properties p
+      WHERE e.property_id = p.id
+        AND e.id = $1
+        AND p.owner_id = $2
+      RETURNING e.id
+    `;
+    const result = await pool.query(deleteSql, [id, req.ownerId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+
+    return res.status(200).json({
+      message: 'Expense deleted successfully',
+      id
+    });
+  } catch (error) {
+    console.error('Error deleting expense:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
