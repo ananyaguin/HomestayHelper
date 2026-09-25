@@ -42,8 +42,44 @@ import {
   BedDouble,
   Plus,
   Pencil,
-  CheckCircle2
+  CheckCircle2,
+  QrCode,
+  Copy,
+  ExternalLink,
+  Check,
+  Eye,
+  RefreshCw,
+  Phone,
+  User,
+  CalendarDays
 } from 'lucide-react';
+import QRCode from 'qrcode';
+
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return 'N/A';
+  try {
+    const clean = String(dateStr).split('T')[0];
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const monthIndex = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, monthIndex, day);
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    }
+    const d = new Date(clean);
+    return isNaN(d.getTime()) ? clean : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  } catch (e) {
+    return String(dateStr);
+  }
+}
+
+function formatStatus(status) {
+  if (status === 'upcoming') return 'Upcoming';
+  if (status === 'checked_in') return 'Checked-in';
+  if (status === 'checked_out') return 'Checked-out';
+  return status || 'Vacant';
+}
 
 export default function OwnerApp({ onLogout }) {
   const [activeTab, setActiveTab] = useState('tabDashboard');
@@ -164,6 +200,93 @@ export default function OwnerApp({ onLogout }) {
       setEditingProperty(null);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Real Backend Rooms & Bookings State (QR-driven booking flow)
+  const [rooms, setRooms] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [roomQrUrls, setRoomQrUrls] = useState({});
+  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+  const [selectedBookingForModal, setSelectedBookingForModal] = useState(null);
+  const [showQrModalRoom, setShowQrModalRoom] = useState(null);
+  const [copiedRoomId, setCopiedRoomId] = useState(null);
+  const [copiedRoomLink, setCopiedRoomLink] = useState(null);
+  const [bookingActionLoading, setBookingActionLoading] = useState(false);
+
+  const loadRoomsAndBookings = async (propertyId) => {
+    if (!propertyId) return;
+    setIsLoadingRooms(true);
+    try {
+      // 1. Fetch rooms for active property
+      const roomsRes = await api.get(`/api/properties/${propertyId}/rooms`);
+      const fetchedRooms = roomsRes?.rooms || [];
+      setRooms(fetchedRooms);
+
+      // 2. Fetch all bookings for authenticated owner
+      const bookingsRes = await api.get('/api/bookings');
+      const fetchedBookings = bookingsRes?.bookings || [];
+      setBookings(fetchedBookings);
+
+      // 3. Generate QR codes for each room
+      const qrMap = {};
+      for (const room of fetchedRooms) {
+        try {
+          const guestUrl = `${window.location.origin}/guest/room/${room.id}`;
+          const qrDataUrl = await QRCode.toDataURL(guestUrl, {
+            width: 260,
+            margin: 2,
+            color: {
+              dark: '#064e3b',
+              light: '#ffffff'
+            }
+          });
+          qrMap[room.id] = { qrDataUrl, guestUrl };
+        } catch (qrErr) {
+          console.error('Failed to generate QR for room:', room.id, qrErr);
+        }
+      }
+      setRoomQrUrls(qrMap);
+    } catch (err) {
+      console.warn('[OwnerApp] Failed to load rooms or bookings:', err);
+    } finally {
+      setIsLoadingRooms(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activePropertyId) {
+      loadRoomsAndBookings(activePropertyId);
+    }
+  }, [activePropertyId]);
+
+  const handleBookingCheckIn = async (bookingId) => {
+    try {
+      setBookingActionLoading(true);
+      await api.patch(`/api/bookings/${bookingId}/check-in`);
+      await loadRoomsAndBookings(activePropertyId);
+      if (selectedBookingForModal?.id === bookingId) {
+        setSelectedBookingForModal((prev) => (prev ? { ...prev, status: 'checked_in' } : null));
+      }
+    } catch (err) {
+      alert(err.message || 'Check-in transition failed');
+    } finally {
+      setBookingActionLoading(false);
+    }
+  };
+
+  const handleBookingCheckOut = async (bookingId) => {
+    try {
+      setBookingActionLoading(true);
+      await api.patch(`/api/bookings/${bookingId}/check-out`);
+      await loadRoomsAndBookings(activePropertyId);
+      if (selectedBookingForModal?.id === bookingId) {
+        setSelectedBookingForModal((prev) => (prev ? { ...prev, status: 'checked_out' } : null));
+      }
+    } catch (err) {
+      alert(err.message || 'Check-out transition failed');
+    } finally {
+      setBookingActionLoading(false);
+    }
   };
 
   const activeProperty = propertiesList.find((p) => p.id === activePropertyId) || propertiesList[0] || null;
@@ -691,6 +814,135 @@ export default function OwnerApp({ onLogout }) {
                     </div>
                   </div>
 
+                  {/* ROOM BOOKINGS BY ROOM (A10-FLOW-FIX QR DRIVEN FLOW - REQUIREMENT 13) */}
+                  <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
+                      <div>
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                          <Key className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>Room Bookings</span>
+                        </h2>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Active guest bookings and QR check-ins for {activePropertyName}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => loadRoomsAndBookings(activePropertyId)}
+                          title="Refresh Bookings"
+                          className="p-1.5 text-slate-500 hover:text-emerald-600 rounded-lg hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition-colors cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRooms ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('tabRooms')}
+                          className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <span>Room QRs</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {isLoadingRooms && rooms.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-slate-400 animate-pulse">
+                        Loading room booking status...
+                      </div>
+                    ) : rooms.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                        No rooms configured yet for this property.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {rooms.map((room) => {
+                          const roomBookings = bookings.filter((b) => b.room_id === room.id);
+                          const activeBooking =
+                            roomBookings.find((b) => b.status === 'checked_in') ||
+                            roomBookings.find((b) => b.status === 'upcoming') ||
+                            (roomBookings.length > 0 ? roomBookings[0] : null);
+
+                          return (
+                            <div
+                              key={room.id}
+                              className="border border-slate-200/80 dark:border-emerald-900/50 rounded-xl p-3.5 bg-slate-50/60 dark:bg-[#07130e] flex flex-col justify-between shadow-2xs hover:border-emerald-500/50 transition-all"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 dark:border-emerald-900/40">
+                                  <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white truncate">
+                                    {room.name}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                      activeBooking?.status === 'checked_in'
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                        : activeBooking?.status === 'upcoming'
+                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                        : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                    }`}
+                                  >
+                                    {activeBooking ? formatStatus(activeBooking.status) : 'Vacant'}
+                                  </span>
+                                </div>
+
+                                {activeBooking ? (
+                                  <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium my-1">
+                                    <p>
+                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Guest:</span>{' '}
+                                      <strong className="font-semibold text-slate-900 dark:text-white">
+                                        {activeBooking.guest_name}
+                                      </strong>
+                                    </p>
+                                    <p>
+                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Phone:</span>{' '}
+                                      {activeBooking.guest_phone}
+                                    </p>
+                                    <p>
+                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Check-in:</span>{' '}
+                                      {formatDisplayDate(activeBooking.check_in)}
+                                    </p>
+                                    <p>
+                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Check-out:</span>{' '}
+                                      {formatDisplayDate(activeBooking.check_out)}
+                                    </p>
+                                    <p>
+                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Status:</span>{' '}
+                                      <span className="font-semibold">{formatStatus(activeBooking.status)}</span>
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="py-3 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                                    <p className="font-medium text-slate-700 dark:text-slate-300">No active booking</p>
+                                    <p className="text-[11px] text-slate-400">Ready for guest QR check-in</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-emerald-900/40">
+                                {activeBooking ? (
+                                  <button
+                                    onClick={() => setSelectedBookingForModal({ ...activeBooking, roomName: room.name })}
+                                    className="w-full py-1.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>View Details</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => setShowQrModalRoom(room)}
+                                    className="w-full py-1.5 px-3 rounded-lg bg-slate-200 dark:bg-emerald-950/70 hover:bg-emerald-700 hover:text-white text-slate-700 dark:text-emerald-300 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                  >
+                                    <QrCode className="w-3.5 h-3.5" />
+                                    <span>Show Room QR</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                   {/* AI Daily Brief Section */}
                   <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40">
                     <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-emerald-900/30">
@@ -1172,38 +1424,218 @@ export default function OwnerApp({ onLogout }) {
             </div>
           )}
 
-          {/* TAB 7: ROOMS */}
+          {/* TAB 7: ROOMS (SYSTEM CONFIGURATION & QR ENTRY POINTS) */}
           {activeTab === 'tabRooms' && (
-            <div className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Key className="w-5 h-5 text-emerald-600" aria-hidden="true" />
-                  <span>Room Inventory</span>
-                </h3>
-                <span className="text-xs text-slate-500 font-medium">4 Total Rooms</span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">Room 101 — Deluxe Balcony</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                      Occupied
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Guest: Priya & Family</p>
+            <div className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-5">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30 gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Key className="w-5 h-5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                    <span>Room Inventory & Guest QR Codes</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Permanent property rooms for {activePropertyName}. Each room has a stable ID and QR code for guest bookings.
+                  </p>
                 </div>
-
-                <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0b1612] border border-slate-200/60 dark:border-emerald-900/30">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">Room 203 — Tea Suite</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                      Occupied
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Guest: Rahul Sharma</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => loadRoomsAndBookings(activePropertyId)}
+                    title="Refresh Rooms"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900/40 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRooms ? 'animate-spin' : ''}`} />
+                    <span>Sync</span>
+                  </button>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                    {rooms.length} System Rooms
+                  </span>
                 </div>
               </div>
+
+              {/* Architecture info notice (Adheres to Requirements 3 & 4) */}
+              <div className="p-3.5 bg-emerald-50/70 dark:bg-[#071912] rounded-xl border border-emerald-200/60 dark:border-emerald-900/50 flex items-start gap-2.5 text-xs text-emerald-900 dark:text-emerald-200">
+                <ShieldAlert className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold">QR-Driven Booking Architecture</p>
+                  <p className="text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                    Rooms are permanent property configuration entities. Owners do not manually create rooms during daily operations.
+                    Guests scan the room's permanent QR code to view room details and submit bookings with required ID documents.
+                  </p>
+                </div>
+              </div>
+
+              {/* Rooms List */}
+              {isLoadingRooms && rooms.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
+                  Loading system room inventory and generating QR codes...
+                </div>
+              ) : rooms.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
+                  No rooms provisioned for this property yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {rooms.map((room) => {
+                    const roomBookings = bookings.filter((b) => b.room_id === room.id);
+                    const activeBooking =
+                      roomBookings.find((b) => b.status === 'checked_in') ||
+                      roomBookings.find((b) => b.status === 'upcoming') ||
+                      (roomBookings.length > 0 ? roomBookings[0] : null);
+
+                    return (
+                      <div
+                        key={room.id}
+                        className="p-4 sm:p-5 rounded-xl bg-slate-50 dark:bg-[#0b1612] border border-slate-200/80 dark:border-emerald-900/40 flex flex-col md:flex-row gap-5 items-start md:items-center justify-between shadow-2xs hover:border-emerald-500/50 transition-all"
+                      >
+                        {/* Room Info */}
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
+                              {room.name}
+                            </h4>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                activeBooking?.status === 'checked_in'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                  : activeBooking?.status === 'upcoming'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                                  : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                              }`}
+                            >
+                              {activeBooking ? formatStatus(activeBooking.status) : 'Vacant'}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                            <span>
+                              Capacity: <strong className="text-slate-700 dark:text-slate-200">{room.capacity || 2} Guests</strong>
+                            </span>
+                            <span>•</span>
+                            <span>
+                              Rate: <strong className="text-emerald-700 dark:text-emerald-400">₹{Number(room.price || 0).toLocaleString('en-IN')}/night</strong>
+                            </span>
+                          </div>
+
+                          {room.description && (
+                            <p className="text-xs text-slate-600 dark:text-slate-400">
+                              {room.description}
+                            </p>
+                          )}
+
+                          {/* Stable Room ID Badge */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <span className="text-[11px] font-mono bg-white dark:bg-[#06120e] px-2 py-1 rounded border border-slate-200 dark:border-emerald-900/60 text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                              <Key className="w-3 h-3 text-emerald-600" />
+                              <span>Room ID: {room.id}</span>
+                            </span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(room.id);
+                                setCopiedRoomId(room.id);
+                                setTimeout(() => setCopiedRoomId(null), 2000);
+                              }}
+                              title="Copy Room ID"
+                              className="text-xs text-slate-500 hover:text-emerald-600 flex items-center gap-1 cursor-pointer"
+                            >
+                              {copiedRoomId === room.id ? (
+                                <span className="text-emerald-600 font-semibold text-[11px] flex items-center gap-0.5">
+                                  <Check className="w-3 h-3" /> Copied ID
+                                </span>
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Active Guest Info if booked */}
+                          {activeBooking && (
+                            <div className="mt-2 p-2.5 rounded-lg bg-white dark:bg-[#071410] border border-slate-200/60 dark:border-emerald-900/40 text-xs">
+                              <span className="text-slate-400">Current Booking: </span>
+                              <strong className="text-slate-900 dark:text-white">{activeBooking.guest_name}</strong>
+                              <span className="text-slate-400">
+                                {' '}
+                                ({activeBooking.guest_phone}) • {formatDisplayDate(activeBooking.check_in)} –{' '}
+                                {formatDisplayDate(activeBooking.check_out)}
+                              </span>
+                              <button
+                                onClick={() => setSelectedBookingForModal({ ...activeBooking, roomName: room.name })}
+                                className="ml-2 text-emerald-600 dark:text-emerald-400 font-semibold hover:underline cursor-pointer"
+                              >
+                                View Details
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Room QR Code & Actions */}
+                        <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+                          {roomQrUrls[room.id]?.qrDataUrl ? (
+                            <div
+                              onClick={() => setShowQrModalRoom(room)}
+                              title="Click to enlarge QR Code"
+                              className="p-1.5 bg-white rounded-xl border border-slate-200 shadow-2xs cursor-pointer hover:scale-105 transition-transform"
+                            >
+                              <img
+                                src={roomQrUrls[room.id].qrDataUrl}
+                                alt={`QR code for ${room.name}`}
+                                className="w-24 h-24 sm:w-28 sm:h-28 object-contain"
+                              />
+                              <p className="text-[9px] text-center text-slate-400 mt-0.5 font-medium">Click to enlarge</p>
+                            </div>
+                          ) : (
+                            <div className="w-24 h-24 sm:w-28 sm:h-28 bg-slate-200 dark:bg-emerald-950/40 rounded-xl flex items-center justify-center text-xs text-slate-400">
+                              Loading QR...
+                            </div>
+                          )}
+
+                          <div className="flex flex-col gap-2 w-full sm:w-auto">
+                            <button
+                              onClick={() => {
+                                const link = `${window.location.origin}/guest/room/${room.id}`;
+                                navigator.clipboard.writeText(link);
+                                setCopiedRoomLink(room.id);
+                                setTimeout(() => setCopiedRoomLink(null), 2000);
+                              }}
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950 flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                            >
+                              {copiedRoomLink === room.id ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Link Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>Copy Link</span>
+                                </>
+                              )}
+                            </button>
+
+                            <a
+                              href={`/guest/room/${room.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Open Page</span>
+                            </a>
+
+                            <button
+                              onClick={() => setShowQrModalRoom(room)}
+                              className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-emerald-950/70 hover:bg-slate-300 dark:hover:bg-emerald-900 text-slate-700 dark:text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                            >
+                              <QrCode className="w-3.5 h-3.5" />
+                              <span>Show QR</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1283,6 +1715,196 @@ export default function OwnerApp({ onLogout }) {
         >
           <Bot className="w-5 h-5 text-emerald-200" />
         </button>
+      )}
+
+      {/* BOOKING DETAILS MODAL (VIEW DETAILS ACTION) */}
+      {selectedBookingForModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0c1a14] rounded-2xl max-w-md w-full border border-slate-200 dark:border-emerald-900/60 shadow-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                  Booking Details — {selectedBookingForModal.roomName || selectedBookingForModal.room_name || 'Room'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedBookingForModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs sm:text-sm">
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#07130e] border border-slate-200/60 dark:border-emerald-900/40 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Guest Name</span>
+                  <strong className="text-slate-900 dark:text-white font-semibold">
+                    {selectedBookingForModal.guest_name}
+                  </strong>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Phone Number</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-mono">
+                    {selectedBookingForModal.guest_phone}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Check-in</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-medium">
+                    {formatDisplayDate(selectedBookingForModal.check_in)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Check-out</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-medium">
+                    {formatDisplayDate(selectedBookingForModal.check_out)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Booking Status</span>
+                  <span
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      selectedBookingForModal.status === 'checked_in'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                        : selectedBookingForModal.status === 'upcoming'
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                        : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    {formatStatus(selectedBookingForModal.status)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Booking & Room Metadata */}
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1 font-mono p-2.5 rounded-lg bg-slate-100/70 dark:bg-[#07130e]/70">
+                <p>Booking ID: {selectedBookingForModal.id}</p>
+                <p>Room ID: {selectedBookingForModal.room_id}</p>
+              </div>
+
+              {/* State Machine Transition Controls (A11 State Machine) */}
+              <div className="pt-2">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  Booking Lifecycle Actions:
+                </p>
+                {selectedBookingForModal.status === 'upcoming' && (
+                  <button
+                    onClick={() => handleBookingCheckIn(selectedBookingForModal.id)}
+                    disabled={bookingActionLoading}
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    <span>{bookingActionLoading ? 'Processing...' : 'Check-In Guest (Transition to Checked-in)'}</span>
+                  </button>
+                )}
+
+                {selectedBookingForModal.status === 'checked_in' && (
+                  <button
+                    onClick={() => handleBookingCheckOut(selectedBookingForModal.id)}
+                    disabled={bookingActionLoading}
+                    className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>{bookingActionLoading ? 'Processing...' : 'Check-Out Guest (Transition to Checked-out)'}</span>
+                  </button>
+                )}
+
+                {selectedBookingForModal.status === 'checked_out' && (
+                  <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>This stay is completed. The guest has checked out.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100 dark:border-emerald-900/30">
+              <button
+                onClick={() => setSelectedBookingForModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ROOM QR MODAL (PRINT & SCAN PREVIEW) */}
+      {showQrModalRoom && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0c1a14] rounded-2xl max-w-sm w-full border border-slate-200 dark:border-emerald-900/60 shadow-2xl p-5 sm:p-6 text-center space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-emerald-900/30">
+              <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate">
+                {showQrModalRoom.name} QR Code
+              </h3>
+              <button
+                onClick={() => setShowQrModalRoom(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Guests scan this QR code to access the booking and self-check-in form for this specific room.
+            </p>
+
+            <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-inner inline-block">
+              {roomQrUrls[showQrModalRoom.id]?.qrDataUrl ? (
+                <img
+                  src={roomQrUrls[showQrModalRoom.id].qrDataUrl}
+                  alt={`QR for ${showQrModalRoom.name}`}
+                  className="w-52 h-52 mx-auto object-contain"
+                />
+              ) : (
+                <div className="w-52 h-52 flex items-center justify-center text-xs text-slate-400">
+                  Generating QR...
+                </div>
+              )}
+            </div>
+
+            <div className="text-[11px] font-mono text-slate-600 dark:text-slate-300 break-all p-2 rounded bg-slate-100 dark:bg-[#07130e] border border-slate-200/60 dark:border-emerald-900/40">
+              {window.location.origin}/guest/room/{showQrModalRoom.id}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const link = `${window.location.origin}/guest/room/${showQrModalRoom.id}`;
+                  navigator.clipboard.writeText(link);
+                  setCopiedRoomLink(showQrModalRoom.id);
+                  setTimeout(() => setCopiedRoomLink(null), 2000);
+                }}
+                className="flex-1 py-2 rounded-xl border border-slate-300 dark:border-emerald-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950 flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+              >
+                {copiedRoomLink === showQrModalRoom.id ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Link</span>
+                  </>
+                )}
+              </button>
+
+              <a
+                href={`/guest/room/${showQrModalRoom.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Open Page</span>
+              </a>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

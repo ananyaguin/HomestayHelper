@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import OwnerApp from './OwnerApp';
 import GuestApp from './GuestApp';
+import GuestRoomBookingPage from './components/guest/GuestRoomBookingPage';
 import Login from './components/Login';
 import { api, setOwnerToken, getOwnerToken, clearTokens } from './services/api';
 
@@ -73,6 +74,8 @@ export default function App() {
         />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/login-preview" element={<LoginPage />} />
+        <Route path="/guest/room/:roomId" element={<GuestRoomBookingPage />} />
+        <Route path="/guest/rooms/:roomId" element={<GuestRoomBookingPage />} />
         <Route path="/guest/:token" element={<GuestApp />} />
       </Routes>
     </BrowserRouter>
