@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   BedDouble,
   Users,
@@ -9,30 +9,26 @@ import {
   Camera,
   CheckCircle2,
   AlertCircle,
-  Building,
   MapPin,
   Clock,
-  Sparkles,
   ArrowRight
 } from 'lucide-react';
 
 export default function GuestRoomBookingPage() {
   const { roomId } = useParams();
+  const navigate = useNavigate();
 
   const [room, setRoom] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
   // Form State
-  const [formData, setFormData] = useState({
-    guest_name: '',
-    guest_phone: '',
-    check_in: new Date().toISOString().split('T')[0],
-    check_out: new Date(Date.now() + 86400000).toISOString().split('T')[0],
-    email: '',
-    id_photo_name: ''
-  });
-  const [idPreview, setIdPreview] = useState(null);
+  const [stayDuration, setStayDuration] = useState(1);
+  const [totalGuests, setTotalGuests] = useState(1);
+  const [guestsList, setGuestsList] = useState([
+    { name: '', phone: '', email: '', id_photo: null, id_photo_name: '' }
+  ]);
+
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -45,9 +41,20 @@ export default function GuestRoomBookingPage() {
       setLoadError('');
       try {
         const res = await fetch(`/api/guest/rooms/${roomId}`);
+        const data = await res.json();
         const roomData = data.room || (data.id ? data : null);
         if (res.ok && roomData) {
-          if (isMounted) setRoom(roomData);
+          if (isMounted) {
+            setRoom(roomData);
+            // Cap total guests if current selection exceeds room capacity
+            const roomCap = Math.max(1, parseInt(roomData.capacity, 10) || 2);
+            if (totalGuests > roomCap) {
+              setTotalGuests(1);
+              setGuestsList([
+                { name: '', phone: '', email: '', id_photo: null, id_photo_name: '' }
+              ]);
+            }
+          }
         } else {
           if (isMounted) setLoadError(data.error || 'Room not found');
         }
@@ -71,13 +78,42 @@ export default function GuestRoomBookingPage() {
     };
   }, [roomId]);
 
-  const handleIdPhotoChange = (e) => {
+  const roomCapacity = Math.max(1, parseInt(room?.capacity, 10) || 2);
+
+  const handleTotalGuestsChange = (num) => {
+    const count = Math.max(1, Math.min(roomCapacity, parseInt(num, 10) || 1));
+    setTotalGuests(count);
+    setGuestsList((prev) => {
+      const updated = [...prev];
+      while (updated.length < count) {
+        updated.push({ name: '', phone: '', email: '', id_photo: null, id_photo_name: '' });
+      }
+      return updated.slice(0, count);
+    });
+  };
+
+  const handleGuestChange = (index, field, value) => {
+    setGuestsList((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleIdPhotoChange = (index, e) => {
     const file = e.target.files?.[0];
     if (file) {
-      setFormData(prev => ({ ...prev, id_photo_name: file.name }));
       const reader = new FileReader();
       reader.onloadend = () => {
-        setIdPreview(reader.result);
+        setGuestsList((prev) => {
+          const copy = [...prev];
+          copy[index] = {
+            ...copy[index],
+            id_photo_name: file.name,
+            id_photo: reader.result
+          };
+          return copy;
+        });
       };
       reader.readAsDataURL(file);
     }
@@ -85,22 +121,15 @@ export default function GuestRoomBookingPage() {
 
   const validate = () => {
     const errors = {};
-    if (!formData.guest_name.trim()) {
-      errors.guest_name = 'Please enter your full name';
+
+    // Primary guest validation
+    if (!guestsList[0]?.name?.trim()) {
+      errors.primary_name = 'Please enter primary guest full name';
     }
-    if (!formData.guest_phone.trim()) {
-      errors.guest_phone = 'Please enter your phone number';
-    } else if (!/^[0-9+\s-]{8,15}$/.test(formData.guest_phone.trim())) {
-      errors.guest_phone = 'Please enter a valid phone number';
+    if (!guestsList[0]?.phone?.trim()) {
+      errors.primary_phone = 'Please enter primary guest phone number';
     }
-    if (!formData.check_in) {
-      errors.check_in = 'Check-in date is required';
-    }
-    if (!formData.check_out) {
-      errors.check_out = 'Check-out date is required';
-    } else if (formData.check_in && formData.check_out < formData.check_in) {
-      errors.check_out = 'Check-out date must be on or after check-in date';
-    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -113,13 +142,21 @@ export default function GuestRoomBookingPage() {
     setSubmitError('');
 
     try {
+      const primaryGuest = guestsList[0];
+
       const payload = {
-        guest_name: formData.guest_name.trim(),
-        guest_phone: formData.guest_phone.trim(),
-        check_in: formData.check_in,
-        check_out: formData.check_out,
-        email: formData.email.trim() || undefined,
-        id_photo: idPreview || undefined
+        guest_name: primaryGuest.name.trim(),
+        guest_phone: primaryGuest.phone.trim(),
+        email: primaryGuest.email?.trim() || undefined,
+        total_guests: totalGuests,
+        stay_duration: parseInt(stayDuration, 10) || 1,
+        guests: guestsList.map((g, idx) => ({
+          name: g.name.trim() || `Guest ${idx + 1}`,
+          phone: g.phone?.trim() || (idx === 0 ? primaryGuest.phone.trim() : undefined),
+          email: g.email?.trim() || (idx === 0 ? primaryGuest.email?.trim() : undefined),
+          id_photo: g.id_photo || undefined,
+          is_primary: idx === 0
+        }))
       };
 
       const res = await fetch(`/api/guest/rooms/${roomId}/bookings`, {
@@ -132,10 +169,10 @@ export default function GuestRoomBookingPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to submit booking');
+        throw new Error(data.error || data.message || 'Failed to submit booking');
       }
 
-      setBookingSuccess(data.booking);
+      setBookingSuccess(data);
     } catch (err) {
       console.error('Booking submission error:', err);
       setSubmitError(err.message || 'An error occurred while creating your booking.');
@@ -172,13 +209,17 @@ export default function GuestRoomBookingPage() {
               {loadError || 'This room does not exist or has been removed. Please scan a valid homestay room QR code.'}
             </p>
           </div>
-          <p className="text-[11px] text-slate-400 font-mono">Room ID: {roomId}</p>
         </div>
       </div>
     );
   }
 
   if (bookingSuccess) {
+    const stayToken = bookingSuccess.token || bookingSuccess.booking?.id;
+    const checkOutStr = bookingSuccess.booking?.check_out
+      ? new Date(bookingSuccess.booking.check_out).toLocaleString()
+      : 'Calculated at Check-In';
+
     return (
       <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#080f0c] text-slate-800 dark:text-slate-100 p-4 sm:p-6 flex flex-col justify-center items-center">
         <div className="max-w-md w-full bg-white dark:bg-[#0f1d17] rounded-2xl border border-emerald-200/80 dark:border-emerald-900/40 p-6 sm:p-8 shadow-xl space-y-5 text-center">
@@ -194,14 +235,14 @@ export default function GuestRoomBookingPage() {
               Welcome to {room.property_name}!
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Your room reservation has been submitted successfully to the host.
+              Your registration is complete. Your stay access has been generated.
             </p>
           </div>
 
           {/* Booking Summary Card */}
           <div className="bg-slate-50 dark:bg-[#0b1612] p-4 rounded-xl border border-slate-200/60 dark:border-emerald-900/30 text-left space-y-2.5 text-xs sm:text-sm">
             <div className="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-emerald-900/20">
-              <span className="text-slate-500 font-medium">Assigned Room:</span>
+              <span className="text-slate-500 font-medium">Room:</span>
               <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                 <BedDouble className="w-4 h-4 text-emerald-600" />
                 {room.name}
@@ -209,42 +250,34 @@ export default function GuestRoomBookingPage() {
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-slate-500 font-medium">Guest Name:</span>
-              <span className="font-bold text-slate-900 dark:text-white">{bookingSuccess.guest_name}</span>
+              <span className="text-slate-500 font-medium">Primary Guest:</span>
+              <span className="font-bold text-slate-900 dark:text-white">{guestsList[0]?.name}</span>
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-slate-500 font-medium">Phone:</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200">{bookingSuccess.guest_phone}</span>
+              <span className="text-slate-500 font-medium">Total Guests:</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{totalGuests} Guest(s)</span>
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-slate-500 font-medium">Stay Dates:</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200">
-                {bookingSuccess.check_in_date || bookingSuccess.check_in} → {bookingSuccess.check_out_date || bookingSuccess.check_out}
-              </span>
+              <span className="text-slate-500 font-medium">Stay Duration:</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200">{stayDuration} {stayDuration === 1 ? 'Day' : 'Days'}</span>
             </div>
 
-            <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 dark:border-emerald-900/20">
-              <span className="text-slate-500 font-medium">Status:</span>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300">
-                Upcoming / Reserved
-              </span>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-500 font-medium">Scheduled Check-Out:</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{checkOutStr}</span>
             </div>
-          </div>
-
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/30 rounded-xl text-left flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
-            <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <span>
-              Your host has received your booking details and will confirm your room key upon arrival.
-            </span>
           </div>
 
           <button
-            onClick={() => window.location.reload()}
-            className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer min-h-[44px]"
+            onClick={() => {
+              navigate(`/guest/${stayToken}`);
+            }}
+            className="w-full py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all cursor-pointer min-h-[48px] flex items-center justify-center gap-2 shadow-md"
           >
-            Create Another Reservation
+            <span>Open Guest Stay Companion</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -256,10 +289,6 @@ export default function GuestRoomBookingPage() {
       <div className="max-w-md mx-auto space-y-5">
         {/* Header Branding */}
         <div className="text-center space-y-1">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-xs font-bold mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>QR Guest Booking</span>
-          </div>
           <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
             {room.property_name}
           </h1>
@@ -294,7 +323,7 @@ export default function GuestRoomBookingPage() {
           <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-emerald-900/30">
             <span className="flex items-center gap-1">
               <Users className="w-3.5 h-3.5 text-slate-400" />
-              <span>Up to {room.capacity} Guests</span>
+              <span>Capacity: {room.capacity} Guests</span>
             </span>
             {room.description && (
               <span className="truncate text-slate-500 dark:text-slate-400">
@@ -305,13 +334,13 @@ export default function GuestRoomBookingPage() {
         </div>
 
         {/* Guest Booking Form */}
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-emerald-900/40 shadow-sm space-y-4">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-[#0f1d17] p-5 sm:p-6 rounded-2xl border border-slate-200/80 dark:border-emerald-900/40 shadow-sm space-y-5">
           <div className="border-b border-slate-100 dark:border-emerald-900/30 pb-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Guest Registration & Check-In
+              Guest Registration
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Please enter your details to reserve this room.
+              Enter guest details and select your stay duration.
             </p>
           </div>
 
@@ -322,140 +351,153 @@ export default function GuestRoomBookingPage() {
             </div>
           )}
 
-          {/* Full Name */}
+          {/* Stay Duration Selection */}
           <div>
-            <label htmlFor="guest_name" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              Full Name <span className="text-rose-500">*</span>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-emerald-600" />
+              <span>Stay Duration <span className="text-rose-500">*</span></span>
             </label>
-            <div className="relative">
-              <User className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-              <input
-                id="guest_name"
-                type="text"
-                value={formData.guest_name}
-                onChange={(e) => setFormData({ ...formData, guest_name: e.target.value })}
-                placeholder="e.g. Priya Sen"
-                className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-xs sm:text-sm bg-slate-50 dark:bg-[#0b1612] text-slate-900 dark:text-white focus:outline-none focus:ring-2 transition-all ${
-                  formErrors.guest_name
-                    ? 'border-rose-300 focus:ring-rose-500'
-                    : 'border-slate-200/80 dark:border-emerald-900/40 focus:ring-emerald-500'
-                }`}
-              />
-            </div>
-            {formErrors.guest_name && (
-              <p className="text-rose-500 text-[11px] font-semibold mt-1">{formErrors.guest_name}</p>
-            )}
-          </div>
-
-          {/* Phone Number */}
-          <div>
-            <label htmlFor="guest_phone" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              Mobile Phone Number <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-              <input
-                id="guest_phone"
-                type="tel"
-                value={formData.guest_phone}
-                onChange={(e) => setFormData({ ...formData, guest_phone: e.target.value })}
-                placeholder="e.g. 9876500003"
-                className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-xs sm:text-sm bg-slate-50 dark:bg-[#0b1612] text-slate-900 dark:text-white focus:outline-none focus:ring-2 transition-all ${
-                  formErrors.guest_phone
-                    ? 'border-rose-300 focus:ring-rose-500'
-                    : 'border-slate-200/80 dark:border-emerald-900/40 focus:ring-emerald-500'
-                }`}
-              />
-            </div>
-            {formErrors.guest_phone && (
-              <p className="text-rose-500 text-[11px] font-semibold mt-1">{formErrors.guest_phone}</p>
-            )}
-          </div>
-
-          {/* Dates Grid */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="check_in" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Check-in Date <span className="text-rose-500">*</span>
-              </label>
-              <input
-                id="check_in"
-                type="date"
-                value={formData.check_in}
-                onChange={(e) => setFormData({ ...formData, check_in: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 text-xs sm:text-sm bg-slate-50 dark:bg-[#0b1612] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              {formErrors.check_in && (
-                <p className="text-rose-500 text-[11px] font-semibold mt-1">{formErrors.check_in}</p>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="check_out" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Check-out Date <span className="text-rose-500">*</span>
-              </label>
-              <input
-                id="check_out"
-                type="date"
-                value={formData.check_out}
-                onChange={(e) => setFormData({ ...formData, check_out: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 text-xs sm:text-sm bg-slate-50 dark:bg-[#0b1612] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              {formErrors.check_out && (
-                <p className="text-rose-500 text-[11px] font-semibold mt-1">{formErrors.check_out}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Email (Optional) */}
-          <div>
-            <label htmlFor="guest_email" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              Email Address <span className="text-slate-400 font-normal">(Optional)</span>
-            </label>
-            <input
-              id="guest_email"
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="e.g. priya@example.com"
+            <select
+              value={stayDuration}
+              onChange={(e) => setStayDuration(parseInt(e.target.value, 10) || 1)}
               className="w-full px-3 py-2.5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 text-xs sm:text-sm bg-slate-50 dark:bg-[#0b1612] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
+            >
+              <option value={1}>1 Day</option>
+              <option value={2}>2 Days</option>
+              <option value={3}>3 Days</option>
+              <option value={4}>4 Days</option>
+              <option value={5}>5 Days</option>
+              <option value={6}>6 Days</option>
+              <option value={7}>7 Days</option>
+              <option value={10}>10 Days</option>
+              <option value={14}>14 Days</option>
+            </select>
           </div>
 
-          {/* ID Photo Upload */}
+          {/* Total Guests Selection (Strictly limited by room.capacity) */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-              ID Document / Photo <span className="text-slate-400 font-normal">(Aadhaar / Passport / Voter ID)</span>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-emerald-600" />
+              <span>Total Number of Guests <span className="text-rose-500">*</span></span>
             </label>
-            <label className="border-2 border-dashed border-slate-300 dark:border-emerald-900/50 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-emerald-950/20 transition-all bg-slate-50/50 dark:bg-[#0b1612]/50">
-              <Camera className="w-5 h-5 text-emerald-600" />
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                {formData.id_photo_name ? formData.id_photo_name : 'Upload or Capture ID Photo'}
-              </span>
-              <span className="text-[10px] text-slate-400">
-                JPG, PNG, or camera capture
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleIdPhotoChange}
-                className="hidden"
-              />
-            </label>
+            <select
+              value={totalGuests}
+              onChange={(e) => handleTotalGuestsChange(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 text-xs sm:text-sm bg-slate-50 dark:bg-[#0b1612] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {Array.from({ length: roomCapacity }, (_, i) => i + 1).map((num) => (
+                <option key={num} value={num}>
+                  {num} {num === 1 ? 'Guest' : 'Guests'}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            {idPreview && (
-              <div className="mt-2.5 flex items-center gap-3 p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-900/30">
-                <img
-                  src={idPreview}
-                  alt="ID Preview"
-                  className="w-12 h-12 object-cover rounded-lg border border-emerald-200"
-                />
-                <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300">
-                  ID Document attached
-                </span>
+          {/* Dynamic Guest List and ID Documents */}
+          <div className="space-y-4 pt-2 border-t border-slate-100 dark:border-emerald-900/30">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 dark:text-white">
+                Guest Identification ({totalGuests} Registered)
+              </span>
+            </div>
+
+            {guestsList.map((guest, idx) => (
+              <div
+                key={idx}
+                className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-[#0b1612]/80 border border-slate-200/80 dark:border-emerald-900/40 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                    Guest {idx + 1} {idx === 0 ? '(Primary Contact)' : ''}
+                  </span>
+                </div>
+
+                {/* Name */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    Full Name {idx === 0 && <span className="text-rose-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={guest.name}
+                    onChange={(e) => handleGuestChange(idx, 'name', e.target.value)}
+                    placeholder={`e.g. ${idx === 0 ? 'Priya Sen' : 'Guest Full Name'}`}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200/80 dark:border-emerald-900/40 text-xs bg-white dark:bg-[#07130e] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  {idx === 0 && formErrors.primary_name && (
+                    <p className="text-rose-500 text-[11px] font-semibold mt-1">{formErrors.primary_name}</p>
+                  )}
+                </div>
+
+                {/* Phone & Email for Primary Guest */}
+                {idx === 0 && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                          Mobile Phone <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          value={guest.phone}
+                          onChange={(e) => handleGuestChange(idx, 'phone', e.target.value)}
+                          placeholder="e.g. 9876543210"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200/80 dark:border-emerald-900/40 text-xs bg-white dark:bg-[#07130e] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        {formErrors.primary_phone && (
+                          <p className="text-rose-500 text-[11px] font-semibold mt-1">{formErrors.primary_phone}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                          Email Address <span className="text-slate-400">(Optional)</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={guest.email}
+                          onChange={(e) => handleGuestChange(idx, 'email', e.target.value)}
+                          placeholder="e.g. priya@example.com"
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200/80 dark:border-emerald-900/40 text-xs bg-white dark:bg-[#07130e] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ID Photo Upload for Guest */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                    ID Document / Photo (Guest {idx + 1})
+                  </label>
+                  <label className="border border-dashed border-slate-300 dark:border-emerald-900/50 rounded-lg p-3 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-white dark:hover:bg-emerald-950/40 transition-all bg-white/70 dark:bg-[#07130e]/70">
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      {guest.id_photo_name ? guest.id_photo_name : `Upload ID Photo for Guest ${idx + 1}`}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(e) => handleIdPhotoChange(idx, e)}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {guest.id_photo && (
+                    <div className="mt-2 flex items-center gap-2 p-1.5 bg-emerald-100/60 dark:bg-emerald-950/60 rounded-lg border border-emerald-300/40">
+                      <img
+                        src={guest.id_photo}
+                        alt={`Guest ${idx + 1} ID`}
+                        className="w-10 h-10 object-cover rounded-md border border-emerald-300"
+                      />
+                      <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
+                        ID Photo attached
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            ))}
           </div>
 
           {/* Submit Button */}

@@ -222,6 +222,37 @@ export default function OwnerApp({ onLogout }) {
   const [copiedRoomId, setCopiedRoomId] = useState(null);
   const [copiedRoomLink, setCopiedRoomLink] = useState(null);
   const [bookingActionLoading, setBookingActionLoading] = useState(false);
+  const [editingRoom, setEditingRoom] = useState(null);
+  const [editRoomForm, setEditRoomForm] = useState({ name: '', price: '', capacity: 2, description: '' });
+  const [isSavingRoom, setIsSavingRoom] = useState(false);
+  const [saveRoomError, setSaveRoomError] = useState(null);
+
+  const handleSaveRoom = async (e) => {
+    e.preventDefault();
+    if (!editingRoom || !activePropertyId) return;
+
+    setIsSavingRoom(true);
+    setSaveRoomError(null);
+
+    try {
+      const payload = {
+        name: editRoomForm.name.trim(),
+        price: Number(editRoomForm.price),
+        capacity: Number(editRoomForm.capacity),
+        description: editRoomForm.description ? editRoomForm.description.trim() : null
+      };
+
+      await api.patch(`/api/properties/${activePropertyId}/rooms/${editingRoom.id}`, payload);
+
+      setEditingRoom(null);
+      await loadRoomsAndBookings(activePropertyId);
+    } catch (err) {
+      console.error('[OwnerApp] Failed to save room:', err);
+      setSaveRoomError(err.message || 'Failed to update room details.');
+    } finally {
+      setIsSavingRoom(false);
+    }
+  };
 
   const loadRoomsAndBookings = useCallback(async (propertyId) => {
     if (!propertyId) return;
@@ -269,35 +300,7 @@ export default function OwnerApp({ onLogout }) {
     }
   }, [activePropertyId, loadRoomsAndBookings]);
 
-  const handleBookingCheckIn = async (bookingId) => {
-    try {
-      setBookingActionLoading(true);
-      await api.patch(`/api/bookings/${bookingId}/check-in`);
-      await loadRoomsAndBookings(activePropertyId);
-      if (selectedBookingForModal?.id === bookingId) {
-        setSelectedBookingForModal((prev) => (prev ? { ...prev, status: 'checked_in' } : null));
-      }
-    } catch (err) {
-      alert(err.message || 'Check-in transition failed');
-    } finally {
-      setBookingActionLoading(false);
-    }
-  };
 
-  const handleBookingCheckOut = async (bookingId) => {
-    try {
-      setBookingActionLoading(true);
-      await api.patch(`/api/bookings/${bookingId}/check-out`);
-      await loadRoomsAndBookings(activePropertyId);
-      if (selectedBookingForModal?.id === bookingId) {
-        setSelectedBookingForModal((prev) => (prev ? { ...prev, status: 'checked_out' } : null));
-      }
-    } catch (err) {
-      alert(err.message || 'Check-out transition failed');
-    } finally {
-      setBookingActionLoading(false);
-    }
-  };
 
   const activeProperty = propertiesList.find((p) => p.id === activePropertyId) || propertiesList[0] || null;
   const activePropertyName = activeProperty ? (activeProperty.name || activeProperty.propertyName || 'My Homestay') : 'Homestay Helper';
@@ -860,10 +863,10 @@ export default function OwnerApp({ onLogout }) {
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                         {rooms.map((room) => {
                           const roomBookings = bookings.filter((b) => b.room_id === room.id);
-                          const activeBooking =
-                            roomBookings.find((b) => b.status === 'checked_in') ||
-                            roomBookings.find((b) => b.status === 'upcoming') ||
-                            (roomBookings.length > 0 ? roomBookings[0] : null);
+                          const activeBooking = roomBookings.find((b) => b.status === 'checked_in');
+                          const upcomingBooking = roomBookings.find((b) => b.status === 'upcoming');
+                          const displayBooking = activeBooking || upcomingBooking || (roomBookings.length > 0 ? roomBookings[0] : null);
+                          const isOccupied = Boolean(activeBooking);
 
                           return (
                             <div
@@ -876,18 +879,17 @@ export default function OwnerApp({ onLogout }) {
                                     {room.name}
                                   </span>
                                   <span
-                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeBooking?.status === 'checked_in'
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                      isOccupied
                                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                        : activeBooking?.status === 'upcoming'
-                                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                          : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                      }`}
+                                        : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                    }`}
                                   >
-                                    {activeBooking ? formatStatus(activeBooking.status) : 'Vacant'}
+                                    {isOccupied ? 'OCCUPIED' : 'VACANT'}
                                   </span>
                                 </div>
 
-                                {activeBooking ? (
+                                {isOccupied && activeBooking ? (
                                   <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium my-1">
                                     <p>
                                       <span className="text-slate-500 dark:text-slate-400 font-normal">Guest:</span>{' '}
@@ -907,23 +909,35 @@ export default function OwnerApp({ onLogout }) {
                                       <span className="text-slate-500 dark:text-slate-400 font-normal">Check-out:</span>{' '}
                                       {formatDisplayDate(activeBooking.check_out)}
                                     </p>
+                                  </div>
+                                ) : upcomingBooking ? (
+                                  <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium my-1">
+                                    <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                                      Upcoming Reservation:
+                                    </p>
                                     <p>
-                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Status:</span>{' '}
-                                      <span className="font-semibold">{formatStatus(activeBooking.status)}</span>
+                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Guest:</span>{' '}
+                                      <strong className="font-semibold text-slate-900 dark:text-white">
+                                        {upcomingBooking.guest_name}
+                                      </strong>
+                                    </p>
+                                    <p>
+                                      <span className="text-slate-500 dark:text-slate-400 font-normal">Check-in:</span>{' '}
+                                      {formatDisplayDate(upcomingBooking.check_in)}
                                     </p>
                                   </div>
                                 ) : (
                                   <div className="py-3 text-center text-xs text-slate-500 dark:text-slate-400 space-y-1">
-                                    <p className="font-medium text-slate-700 dark:text-slate-300">No active booking</p>
-                                    <p className="text-[11px] text-slate-400">Ready for guest QR check-in</p>
+                                    <p className="font-medium text-slate-700 dark:text-slate-300">No active stay</p>
+                                    <p className="text-[11px] text-slate-400">Ready for QR check-in</p>
                                   </div>
                                 )}
                               </div>
 
                               <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-emerald-900/40">
-                                {activeBooking ? (
+                                {displayBooking ? (
                                   <button
-                                    onClick={() => setSelectedBookingForModal({ ...activeBooking, roomName: room.name })}
+                                    onClick={() => setSelectedBookingForModal({ ...displayBooking, roomName: room.name })}
                                     className="w-full py-1.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
                                   >
                                     <Eye className="w-3.5 h-3.5" />
@@ -1521,10 +1535,20 @@ export default function OwnerApp({ onLogout }) {
                 <div className="grid grid-cols-1 gap-4">
                   {rooms.map((room) => {
                     const roomBookings = bookings.filter((b) => b.room_id === room.id);
-                    const activeBooking =
-                      roomBookings.find((b) => b.status === 'checked_in') ||
-                      roomBookings.find((b) => b.status === 'upcoming') ||
-                      (roomBookings.length > 0 ? roomBookings[0] : null);
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const occupiedBooking = roomBookings.find((b) => {
+                      if (b.status === 'checked_in') return true;
+                      if (b.status === 'checked_out') return false;
+                      const cIn = b.check_in_date || b.check_in;
+                      const cOut = b.check_out_date || b.check_out;
+                      if (cIn && cOut) {
+                        const start = String(cIn).split('T')[0];
+                        const end = String(cOut).split('T')[0];
+                        return todayStr >= start && todayStr <= end;
+                      }
+                      return false;
+                    });
+                    const isOccupied = Boolean(occupiedBooking);
 
                     return (
                       <div
@@ -1538,14 +1562,12 @@ export default function OwnerApp({ onLogout }) {
                               {room.name}
                             </h4>
                             <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${activeBooking?.status === 'checked_in'
+                              className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${isOccupied
                                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                  : activeBooking?.status === 'upcoming'
-                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                    : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                  : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                                 }`}
                             >
-                              {activeBooking ? formatStatus(activeBooking.status) : 'Vacant'}
+                              {isOccupied ? 'OCCUPIED' : 'VACANT'}
                             </span>
                           </div>
 
@@ -1565,43 +1587,18 @@ export default function OwnerApp({ onLogout }) {
                             </p>
                           )}
 
-                          {/* Stable Room ID Badge */}
-                          <div className="flex items-center gap-2 pt-1">
-                            <span className="text-[11px] font-mono bg-white dark:bg-[#06120e] px-2 py-1 rounded border border-slate-200 dark:border-emerald-900/60 text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                              <Key className="w-3 h-3 text-emerald-600" />
-                              <span>Room ID: {room.id}</span>
-                            </span>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(room.id);
-                                setCopiedRoomId(room.id);
-                                setTimeout(() => setCopiedRoomId(null), 2000);
-                              }}
-                              title="Copy Room ID"
-                              className="text-xs text-slate-500 hover:text-emerald-600 flex items-center gap-1 cursor-pointer"
-                            >
-                              {copiedRoomId === room.id ? (
-                                <span className="text-emerald-600 font-semibold text-[11px] flex items-center gap-0.5">
-                                  <Check className="w-3 h-3" /> Copied ID
-                                </span>
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
-
-                          {/* Active Guest Info if booked */}
-                          {activeBooking && (
+                          {/* Active Guest Info ONLY when OCCUPIED */}
+                          {isOccupied && occupiedBooking && (
                             <div className="mt-2 p-2.5 rounded-lg bg-white dark:bg-[#071410] border border-slate-200/60 dark:border-emerald-900/40 text-xs">
-                              <span className="text-slate-400">Current Booking: </span>
-                              <strong className="text-slate-900 dark:text-white">{activeBooking.guest_name}</strong>
+                              <span className="text-slate-400">Current Guest: </span>
+                              <strong className="text-slate-900 dark:text-white">{occupiedBooking.guest_name}</strong>
                               <span className="text-slate-400">
                                 {' '}
-                                ({activeBooking.guest_phone}) • {formatDisplayDate(activeBooking.check_in)} –{' '}
-                                {formatDisplayDate(activeBooking.check_out)}
+                                ({occupiedBooking.guest_phone}) • {formatDisplayDate(occupiedBooking.check_in)} –{' '}
+                                {formatDisplayDate(occupiedBooking.check_out)}
                               </span>
                               <button
-                                onClick={() => setSelectedBookingForModal({ ...activeBooking, roomName: room.name })}
+                                onClick={() => setSelectedBookingForModal({ ...occupiedBooking, roomName: room.name })}
                                 className="ml-2 text-emerald-600 dark:text-emerald-400 font-semibold hover:underline cursor-pointer"
                               >
                                 View Details
@@ -1654,15 +1651,22 @@ export default function OwnerApp({ onLogout }) {
                               )}
                             </button>
 
-                            <a
-                              href={`/guest/room/${room.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                            <button
+                              onClick={() => {
+                                setEditingRoom(room);
+                                setEditRoomForm({
+                                  name: room.name || '',
+                                  price: room.price || '',
+                                  capacity: room.capacity || 2,
+                                  description: room.description || ''
+                                });
+                                setSaveRoomError(null);
+                              }}
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-800 hover:bg-slate-100 dark:hover:bg-emerald-950 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                             >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              <span>Open Page</span>
-                            </a>
+                              <Pencil className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <span>Edit Room</span>
+                            </button>
 
                             <button
                               onClick={() => setShowQrModalRoom(room)}
@@ -1776,85 +1780,66 @@ export default function OwnerApp({ onLogout }) {
             </div>
 
             <div className="space-y-3 text-xs sm:text-sm">
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#07130e] border border-slate-200/60 dark:border-emerald-900/40 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Guest Name</span>
-                  <strong className="text-slate-900 dark:text-white font-semibold">
-                    {selectedBookingForModal.guest_name}
-                  </strong>
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#07130e] border border-slate-200/60 dark:border-emerald-900/40 space-y-2.5">
+                <div className="flex justify-between items-start pb-2 border-b border-slate-200/60 dark:border-emerald-900/30">
+                  <span className="text-slate-500 dark:text-slate-400">Registered Guest(s)</span>
+                  <div className="text-right">
+                    {Array.isArray(selectedBookingForModal.guests) && selectedBookingForModal.guests.length > 0 ? (
+                      selectedBookingForModal.guests.map((g, i) => (
+                        <div key={g.id || i} className="font-semibold text-slate-900 dark:text-white">
+                          {g.name} {g.is_primary ? '(Primary)' : ''}
+                        </div>
+                      ))
+                    ) : (
+                      <strong className="text-slate-900 dark:text-white font-semibold">
+                        {selectedBookingForModal.guest_name}
+                      </strong>
+                    )}
+                  </div>
                 </div>
+
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500 dark:text-slate-400">Phone Number</span>
+                  <span className="text-slate-500 dark:text-slate-400">Primary Phone</span>
                   <span className="text-slate-800 dark:text-slate-200 font-mono">
                     {selectedBookingForModal.guest_phone}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
+                  <span className="text-slate-500 dark:text-slate-400">Total Guests</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-medium">
+                    {selectedBookingForModal.total_guests || 1} Guest(s)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
                   <span className="text-slate-500 dark:text-slate-400">Check-in</span>
                   <span className="text-slate-800 dark:text-slate-200 font-medium">
-                    {formatDisplayDate(selectedBookingForModal.check_in)}
+                    {new Date(selectedBookingForModal.check_in).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 dark:text-slate-400">Check-out</span>
                   <span className="text-slate-800 dark:text-slate-200 font-medium">
-                    {formatDisplayDate(selectedBookingForModal.check_out)}
+                    {new Date(selectedBookingForModal.check_out).toLocaleString()}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 dark:border-emerald-900/30">
                   <span className="text-slate-500 dark:text-slate-400">Booking Status</span>
                   <span
-                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${selectedBookingForModal.status === 'checked_in'
+                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                      selectedBookingForModal.status === 'checked_in'
                         ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                         : selectedBookingForModal.status === 'upcoming'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                          : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                      }`}
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                        : 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
                   >
-                    {formatStatus(selectedBookingForModal.status)}
+                    {selectedBookingForModal.status === 'checked_in'
+                      ? 'Active Stay (Occupied)'
+                      : selectedBookingForModal.status === 'upcoming'
+                      ? 'Upcoming Reservation'
+                      : 'Completed Stay'}
                   </span>
                 </div>
-              </div>
-
-              {/* Booking & Room Metadata */}
-              <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1 font-mono p-2.5 rounded-lg bg-slate-100/70 dark:bg-[#07130e]/70">
-                <p>Booking ID: {selectedBookingForModal.id}</p>
-                <p>Room ID: {selectedBookingForModal.room_id}</p>
-              </div>
-
-              {/* State Machine Transition Controls (A11 State Machine) */}
-              <div className="pt-2">
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                  Booking Lifecycle Actions:
-                </p>
-                {selectedBookingForModal.status === 'upcoming' && (
-                  <button
-                    onClick={() => handleBookingCheckIn(selectedBookingForModal.id)}
-                    disabled={bookingActionLoading}
-                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                  >
-                    <UserCheck className="w-4 h-4" />
-                    <span>{bookingActionLoading ? 'Processing...' : 'Check-In Guest (Transition to Checked-in)'}</span>
-                  </button>
-                )}
-
-                {selectedBookingForModal.status === 'checked_in' && (
-                  <button
-                    onClick={() => handleBookingCheckOut(selectedBookingForModal.id)}
-                    disabled={bookingActionLoading}
-                    className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>{bookingActionLoading ? 'Processing...' : 'Check-Out Guest (Transition to Checked-out)'}</span>
-                  </button>
-                )}
-
-                {selectedBookingForModal.status === 'checked_out' && (
-                  <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>This stay is completed. The guest has checked out.</span>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1908,7 +1893,7 @@ export default function OwnerApp({ onLogout }) {
               {window.location.origin}/guest/room/{showQrModalRoom.id}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex justify-center">
               <button
                 onClick={() => {
                   const link = `${window.location.origin}/guest/room/${showQrModalRoom.id}`;
@@ -1916,7 +1901,7 @@ export default function OwnerApp({ onLogout }) {
                   setCopiedRoomLink(showQrModalRoom.id);
                   setTimeout(() => setCopiedRoomLink(null), 2000);
                 }}
-                className="flex-1 py-2 rounded-xl border border-slate-300 dark:border-emerald-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950 flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                className="w-full py-2.5 rounded-xl border border-slate-300 dark:border-emerald-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950 flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
               >
                 {copiedRoomLink === showQrModalRoom.id ? (
                   <>
@@ -1930,17 +1915,115 @@ export default function OwnerApp({ onLogout }) {
                   </>
                 )}
               </button>
-
-              <a
-                href={`/guest/room/${showQrModalRoom.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                <span>Open Page</span>
-              </a>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT ROOM MODAL */}
+      {editingRoom && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0c1a14] rounded-2xl max-w-md w-full border border-slate-200 dark:border-emerald-900/60 shadow-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                  Edit Room Details
+                </h3>
+              </div>
+              <button
+                onClick={() => setEditingRoom(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {saveRoomError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-200 text-xs font-semibold">
+                {saveRoomError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveRoom} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Room Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editRoomForm.name}
+                  onChange={(e) => setEditRoomForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="e.g. Room 101 — Deluxe Balcony"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-emerald-900/60 bg-slate-50 dark:bg-[#07130e] text-slate-900 dark:text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Price per Night (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="1"
+                    value={editRoomForm.price}
+                    onChange={(e) => setEditRoomForm((prev) => ({ ...prev, price: e.target.value }))}
+                    placeholder="2000"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-emerald-900/60 bg-slate-50 dark:bg-[#07130e] text-slate-900 dark:text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Capacity (Guests) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    max="20"
+                    value={editRoomForm.capacity}
+                    onChange={(e) => setEditRoomForm((prev) => ({ ...prev, capacity: e.target.value }))}
+                    placeholder="2"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-emerald-900/60 bg-slate-50 dark:bg-[#07130e] text-slate-900 dark:text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  View & Description
+                </label>
+                <textarea
+                  rows="3"
+                  value={editRoomForm.description}
+                  onChange={(e) => setEditRoomForm((prev) => ({ ...prev, description: e.target.value }))}
+                  placeholder="e.g. Mountain view balcony, garden facing, etc."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-emerald-900/60 bg-slate-50 dark:bg-[#07130e] text-slate-900 dark:text-white text-xs sm:text-sm font-medium focus:outline-none focus:border-emerald-600 resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-emerald-900/30">
+                <button
+                  type="button"
+                  onClick={() => setEditingRoom(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingRoom}
+                  className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isSavingRoom ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

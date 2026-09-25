@@ -37,6 +37,23 @@ router.get('/room/:roomId', async (req, res) => {
 });
 
 /**
+ * GET /api/guest/stay/:token
+ * Retrieves active guest stay information using the stay token.
+ */
+router.get('/stay/:token', async (req, res) => {
+  try {
+    const stayData = await bookingService.getGuestStay(req.params.token);
+    return res.status(200).json(stayData);
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error fetching guest stay:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/guest/rooms/:roomId/bookings
  * Guest creates a booking for the scanned room.
  * Backend strictly resolves roomId -> room -> property -> owner.
