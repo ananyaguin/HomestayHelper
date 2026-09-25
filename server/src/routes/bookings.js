@@ -2,9 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { verifyOwnerJWT } = require('../middleware/auth');
 const bookingService = require('../services/bookingService');
+const ledgerRouter = require('./ledger');
 
 // All booking routes require owner authentication
 router.use(verifyOwnerJWT);
+
+// Nested ledger router for booking entries
+router.use('/:id/ledger', ledgerRouter);
 
 /**
  * GET /api/bookings
