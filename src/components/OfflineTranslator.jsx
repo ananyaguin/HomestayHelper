@@ -519,7 +519,7 @@ export default function OfflineTranslator({
                 ) : (
                   <>
                     <Mic className="w-3.5 h-3.5 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
-                    <span>🎤 Speak-to-Text</span>
+                    <span>Speak-to-Text</span>
                   </>
                 )}
               </button>

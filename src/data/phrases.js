@@ -4,49 +4,49 @@ export const PHRASE_CATEGORIES = [
     id: "welcome",
     name: "Welcome",
     subtitle: "Greetings & arrival",
-    icon: "👋",
+    icon: "",
     color: "emerald"
   },
   {
     id: "food-tea",
     name: "Food & Tea",
     subtitle: "Meals & refreshments",
-    icon: "☕",
+    icon: "",
     color: "amber"
   },
   {
     id: "room",
     name: "Room",
     subtitle: "Room & comfort",
-    icon: "🛏️",
+    icon: "",
     color: "sky"
   },
   {
     id: "directions",
     name: "Directions",
     subtitle: "Places & transport",
-    icon: "📍",
+    icon: "",
     color: "teal"
   },
   {
     id: "payment",
     name: "Payment",
     subtitle: "Booking & payment",
-    icon: "₹",
+    icon: "",
     color: "emerald"
   },
   {
     id: "local-experience",
     name: "Local Experience",
     subtitle: "Explore the area",
-    icon: "🌿",
+    icon: "",
     color: "indigo"
   },
   {
     id: "emergency",
     name: "Emergency",
     subtitle: "Urgent assistance",
-    icon: "🆘",
+    icon: "",
     color: "rose"
   }
 ];

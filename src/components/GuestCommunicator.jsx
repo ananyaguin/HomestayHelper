@@ -45,8 +45,8 @@ export default function GuestCommunicator() {
   const categoryPhrases = useMemo(() => {
     return activeCategoryView
       ? HOMESTAY_PHRASES.filter(
-          (p) => p.categoryId === activeCategoryView || p.category.toLowerCase() === currentCategory?.name.toLowerCase()
-        )
+        (p) => p.categoryId === activeCategoryView || p.category.toLowerCase() === currentCategory?.name.toLowerCase()
+      )
       : [];
   }, [activeCategoryView, currentCategory]);
 
@@ -147,7 +147,6 @@ export default function GuestCommunicator() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-emerald-900/10 dark:border-emerald-900/30 gap-2">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xl">🌿</span>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                   Quick Hospitality Phrases
                 </h3>
@@ -178,15 +177,12 @@ export default function GuestCommunicator() {
                   key={cat.id}
                   type="button"
                   onClick={() => setActiveCategoryView(cat.id)}
-                  className="p-4 rounded-xl bg-white/90 dark:bg-[#13231c]/90 backdrop-blur-sm border border-slate-200/80 dark:border-emerald-800/40 hover:border-emerald-600 dark:hover:border-emerald-500 hover:shadow-md transition-all text-center group cursor-pointer active:scale-98 flex flex-col items-center justify-center min-h-[110px]"
+                  className="p-4 rounded-xl bg-white/95 dark:bg-[#13231c]/95 backdrop-blur-sm border border-slate-200/80 dark:border-emerald-800/40 hover:border-emerald-600 dark:hover:border-emerald-500 hover:shadow-md transition-all text-center group cursor-pointer active:scale-98 flex flex-col items-center justify-center min-h-[96px]"
                 >
-                  <div className="text-2xl mb-1.5 group-hover:scale-110 transition-transform duration-150">
-                    {cat.icon}
-                  </div>
-                  <div className="text-xs font-extrabold uppercase tracking-wide text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                  <div className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                     {cat.name}
                   </div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {cat.subtitle}
                   </div>
                 </button>
@@ -216,7 +212,6 @@ export default function GuestCommunicator() {
 
               {/* Category Title Banner */}
               <div className="p-3.5 rounded-xl bg-white/85 dark:bg-[#13231c]/85 backdrop-blur-xs border border-emerald-100 dark:border-emerald-900/40 flex items-center gap-3 shadow-2xs">
-                <span className="text-3xl">{currentCategory?.icon}</span>
                 <div>
                   <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
                     {currentCategory?.name}
@@ -263,11 +258,10 @@ export default function GuestCommunicator() {
                           <button
                             type="button"
                             onClick={() => handleSpeakPhrase(phrase)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[34px] ${
-                              isSpeaking
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer min-h-[34px] ${isSpeaking
                                 ? 'bg-amber-600 text-white animate-pulse shadow-sm'
                                 : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-2xs'
-                            }`}
+                              }`}
                           >
                             {isSpeaking ? (
                               <>
