@@ -104,11 +104,14 @@ export default function GuestCommunicator() {
    * Put phrase into the main translator input without auto-translating, and scroll up smoothly
    */
   const handleUsePhrase = useCallback((phrase) => {
-    setSelectedPhrase(phrase.english);
+    const textToUse = sourceLang === 'en'
+      ? phrase.english
+      : (phrase[sourceLang] || phrase.hindi || phrase.nepali || phrase.bengali || phrase.english);
+    setSelectedPhrase(textToUse);
     if (translatorRef.current) {
       translatorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, []);
+  }, [sourceLang]);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12 animate-fadeIn">

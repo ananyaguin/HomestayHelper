@@ -144,12 +144,7 @@ class TranslationService {
       return text.trim();
     }
 
-    // If both source and target are Indic languages (e.g. hi -> bn, ne -> hi),
-    // pivot seamlessly via English (Indic -> EN -> Indic) using existing local models
-    if (sourceLanguage !== 'en' && targetLanguage !== 'en') {
-      const intermediateEnglish = await this.translateText(text, sourceLanguage, 'en');
-      return await this.translateText(intermediateEnglish, 'en', targetLanguage);
-    }
+
 
     if (!this.worker) {
       this.initWorker();

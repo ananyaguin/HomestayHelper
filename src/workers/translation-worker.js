@@ -392,53 +392,133 @@ self.onmessage = async (event) => {
         return;
       }
 
-      // Check language direction
-      let direction = null;
-      if (srcFlores === 'eng_Latn') {
-        direction = 'en-indic';
-      } else if (tgtFlores === 'eng_Latn') {
-        direction = 'indic-en';
-      } else {
-        self.postMessage({
-          id,
-          type: 'error',
-          success: false,
-          error: 'Direct Indic-to-Indic translation is not enabled yet.'
-        });
-        return;
-      }
-
       try {
-        const isAlreadyLoaded = loadedModels.has(direction);
-        if (!isAlreadyLoaded) {
+        let translatedText;
+
+        if (srcFlores === 'eng_Latn') {
+          // 1. English -> Indic (Hindi, Bengali, Nepali)
+          const isAlreadyLoaded = loadedModels.has('en-indic');
+          if (!isAlreadyLoaded) {
+            self.postMessage({
+              id,
+              type: 'status',
+              status: 'LOADING',
+              message: 'Initializing local English to Indic model...'
+            });
+          }
+
+          const model = await loadDirectionModel('en-indic', (progressState) => {
+            self.postMessage({
+              id,
+              type: 'status',
+              ...progressState
+            });
+          });
+
+          if (activeTranslateId !== id) return;
+
           self.postMessage({
             id,
             type: 'status',
-            status: 'LOADING',
-            message: `Initializing local ${direction} model...`
+            status: 'TRANSLATING',
+            message: 'Translating...'
           });
-        }
 
-        const model = await loadDirectionModel(direction, (progressState) => {
+          translatedText = await runTranslation(text, srcFlores, tgtFlores, model, id);
+        } else if (tgtFlores === 'eng_Latn') {
+          // 2. Indic (Hindi, Bengali, Nepali) -> English
+          const isAlreadyLoaded = loadedModels.has('indic-en');
+          if (!isAlreadyLoaded) {
+            self.postMessage({
+              id,
+              type: 'status',
+              status: 'LOADING',
+              message: 'Initializing local Indic to English model...'
+            });
+          }
+
+          const model = await loadDirectionModel('indic-en', (progressState) => {
+            self.postMessage({
+              id,
+              type: 'status',
+              ...progressState
+            });
+          });
+
+          if (activeTranslateId !== id) return;
+
           self.postMessage({
             id,
             type: 'status',
-            ...progressState
+            status: 'TRANSLATING',
+            message: 'Translating...'
           });
-        });
 
-        if (activeTranslateId !== id) {
-          return; // Superseded
+          translatedText = await runTranslation(text, srcFlores, tgtFlores, model, id);
+        } else {
+          // 3. Indic -> Indic (e.g. Hindi <-> Bengali, Hindi <-> Nepali, Bengali <-> Nepali)
+          // Step 1: Translate Source Indic -> English
+          const isAlreadyLoadedIndicEn = loadedModels.has('indic-en');
+          if (!isAlreadyLoadedIndicEn) {
+            self.postMessage({
+              id,
+              type: 'status',
+              status: 'LOADING',
+              message: 'Initializing Indic to English model...'
+            });
+          }
+
+          const modelIndicEn = await loadDirectionModel('indic-en', (progressState) => {
+            self.postMessage({
+              id,
+              type: 'status',
+              ...progressState
+            });
+          });
+
+          if (activeTranslateId !== id) return;
+
+          self.postMessage({
+            id,
+            type: 'status',
+            status: 'TRANSLATING',
+            message: 'Translating source to English...'
+          });
+
+          const intermediateEnglish = await runTranslation(text, srcFlores, 'eng_Latn', modelIndicEn, id);
+
+          if (activeTranslateId !== id) return;
+
+          // Step 2: Translate English -> Target Indic
+          const isAlreadyLoadedEnIndic = loadedModels.has('en-indic');
+          if (!isAlreadyLoadedEnIndic) {
+            self.postMessage({
+              id,
+              type: 'status',
+              status: 'LOADING',
+              message: 'Initializing English to Indic model...'
+            });
+          }
+
+          const modelEnIndic = await loadDirectionModel('en-indic', (progressState) => {
+            self.postMessage({
+              id,
+              type: 'status',
+              ...progressState
+            });
+          });
+
+          if (activeTranslateId !== id) return;
+
+          self.postMessage({
+            id,
+            type: 'status',
+            status: 'TRANSLATING',
+            message: 'Translating to target language...'
+          });
+
+          translatedText = await runTranslation(intermediateEnglish, 'eng_Latn', tgtFlores, modelEnIndic, id);
         }
-
-        self.postMessage({
-          id,
-          type: 'status',
-          status: 'TRANSLATING',
-          message: 'Translating...'
-        });
-
-        const translatedText = await runTranslation(text, srcFlores, tgtFlores, model, id);
 
         if (activeTranslateId !== id) {
           return; // Superseded

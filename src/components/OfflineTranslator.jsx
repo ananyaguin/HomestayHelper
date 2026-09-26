@@ -111,6 +111,7 @@ export default function OfflineTranslator({
   const performTranslation = async (textToTranslate, srcLang, tgtLang) => {
     const query = (textToTranslate || '').trim();
     if (!query) return '';
+    if (srcLang === tgtLang) return query;
 
     // 1. Primary: Local AI Translation Web Worker (IndicTrans2 / ONNX)
     try {

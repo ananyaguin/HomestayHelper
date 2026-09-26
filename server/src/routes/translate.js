@@ -48,82 +48,121 @@ function findDictionaryTranslation(text, sourceLang, targetLang) {
 }
 
 /**
- * Fallback translation generator for common homestay requests
+ * Fallback translation generator for common homestay requests across ALL 4 supported languages
  */
 function fallbackTranslate(text, sourceLang, targetLang) {
+  if (sourceLang === targetLang) return text;
+
   const matched = findDictionaryTranslation(text, sourceLang, targetLang);
   if (matched) return matched;
 
   const t = clean(text);
 
-  // Common blanket / room queries
-  if (t.includes('blanket') || t.includes('towel') || t.includes('कम्बल')) {
-    if (targetLang === 'en') return 'Can I have another blanket?';
-    if (targetLang === 'ne') return 'मलाई अर्को कम्बल दिनुहुन्छ?';
-    if (targetLang === 'hi') return 'क्या मुझे एक और कंबल मिल सकता है?';
-    if (targetLang === 'bn') return 'আমি কি আরেকটি কম্বল পেতে পারি?';
-    return 'Would you like another blanket or towel?';
+  // 1. "How are you?"
+  if (t.includes('how are you') || t.includes('कैसे') || t.includes('कस्तो') || t.includes('কেমন')) {
+    if (targetLang === 'en') return 'How are you?';
+    if (targetLang === 'hi') return 'आप कैसे हैं?';
+    if (targetLang === 'ne') return 'तपाईं कस्तो हुनुहुन्छ?';
+    if (targetLang === 'bn') return 'আপনি কেমন আছেন?';
   }
 
-  // Bathroom / washroom queries
-  if (t.includes('bathroom') || t.includes('washroom') || t.includes('toilet') || t.includes('शौचालय')) {
-    if (targetLang === 'en') return 'Where is the bathroom?';
-    if (targetLang === 'ne') return 'शौचालय कहाँ छ?';
-    if (targetLang === 'hi') return 'बाथरूम कहाँ है?';
-    if (targetLang === 'bn') return 'বাথরুম কোথায়?';
-    return 'Where is the bathroom?';
+  // 2. "Where is my room?"
+  if ((t.includes('where') && (t.includes('room') || t.includes('my room'))) ||
+      t.includes('कमरा कहाँ') || t.includes('कोठा कहाँ') || t.includes('ঘর কোথায়')) {
+    if (targetLang === 'en') return 'Where is my room?';
+    if (targetLang === 'hi') return 'मेरा कमरा कहाँ है?';
+    if (targetLang === 'ne') return 'मेरो कोठा कहाँ छ?';
+    if (targetLang === 'bn') return 'আমার ঘরটি কোথায়?';
   }
 
-  // Drinking water queries
-  if (t.includes('drinking water') || t.includes('water') || t.includes('पानी')) {
+  // 3. Towel / Blanket requests
+  if (t.includes('blanket') || t.includes('towel') || t.includes('कम्बल') || t.includes('तौलिया') || t.includes('তোয়ালে')) {
+    if (targetLang === 'en') return 'Can I have another blanket or towel?';
+    if (targetLang === 'hi') return 'क्या मुझे एक और कंबल या तौलिया मिल सकता है?';
+    if (targetLang === 'ne') return 'मलाई अर्को कम्बल वा तौलिया दिन सक्नुहुन्छ?';
+    if (targetLang === 'bn') return 'আমি কি আরেকটি কম্বল বা তোয়ালে পেতে পারি?';
+  }
+
+  // 4. Breakfast / Meal timing
+  if (t.includes('breakfast') || t.includes('नाश्ता') || t.includes('खाजा') || t.includes('নাস্তা')) {
+    if (targetLang === 'en') return 'What time is breakfast?';
+    if (targetLang === 'hi') return 'नाश्ता किस समय मिलेगा?';
+    if (targetLang === 'ne') return 'बिहानको खाजा कति बजे हुन्छ?';
+    if (targetLang === 'bn') return 'সকালের নাস্তা কখন হবে?';
+  }
+
+  // 5. Drinking water
+  if (t.includes('drinking water') || t.includes('water') || t.includes('पानी') || t.includes('জল')) {
     if (targetLang === 'en') return 'I need drinking water.';
-    if (targetLang === 'ne') return 'मलाई पिउने पानी चाहिन्छ।';
     if (targetLang === 'hi') return 'मुझे पीने का पानी चाहिए।';
+    if (targetLang === 'ne') return 'मलाई पिउने पानी चाहिन्छ।';
     if (targetLang === 'bn') return 'আমার খাবার জল দরকার।';
-    return 'I need drinking water.';
   }
 
-  // Clean room queries
-  if (t.includes('clean') || t.includes('सफा')) {
+  // 6. Wi-Fi
+  if (t.includes('wifi') || t.includes('wi-fi') || t.includes('वाई-फाई') || t.includes('वाइ-फाइ') || t.includes('ওয়াই-ফাই')) {
+    if (targetLang === 'en') return 'What is the Wi-Fi password?';
+    if (targetLang === 'hi') return 'वाई-फाई का पासवर्ड क्या है?';
+    if (targetLang === 'ne') return 'वाइ-फाइको पासवर्ड के हो?';
+    if (targetLang === 'bn') return 'ওয়াই-ফাই পাসওয়ার্ড কি?';
+  }
+
+  // 7. Bathroom / washroom
+  if (t.includes('bathroom') || t.includes('washroom') || t.includes('toilet') || t.includes('बाथरूम') || t.includes('शौचालय') || t.includes('বাথরুম')) {
+    if (targetLang === 'en') return 'Where is the bathroom?';
+    if (targetLang === 'hi') return 'बाथरूम कहाँ है?';
+    if (targetLang === 'ne') return 'शौचालय कहाँ छ?';
+    if (targetLang === 'bn') return 'বাথরুম কোথায়?';
+  }
+
+  // 8. Clean room
+  if (t.includes('clean') || t.includes('सफा') || t.includes('साफ') || t.includes('পরিষ্কার')) {
     if (targetLang === 'en') return 'Please clean the room.';
-    if (targetLang === 'ne') return 'कृपया कोठा सफा गरिदिनुहोस्।';
     if (targetLang === 'hi') return 'कृपया कमरा साफ कर दीजिए।';
+    if (targetLang === 'ne') return 'कृपया कोठा सफा गरिदिनुहोस्।';
     if (targetLang === 'bn') return 'অনুগ্রহ করে ঘরটি পরিষ্কার করে দিন।';
-    return 'Please clean the room.';
   }
 
-  // Tea queries
-  if (t.includes('tea') || t.includes('चिया') || t.includes('चाय')) {
+  // 9. Tea queries
+  if (t.includes('tea') || t.includes('चिया') || t.includes('चाय') || t.includes('চা')) {
     if (targetLang === 'en') return 'Would you like some tea?';
-    if (targetLang === 'ne') return 'तपाईंलाई चिया चाहिन्छ?';
     if (targetLang === 'hi') return 'क्या आप थोड़ी चाय लेना चाहेंगे?';
+    if (targetLang === 'ne') return 'तपाईंलाई चिया चाहिन्छ?';
     if (targetLang === 'bn') return 'আপনি কি একটু চা খাবেন?';
-    return 'Would you like some tea?';
   }
 
-  // Room / comfort queries
-  if (t.includes('room') || t.includes('comfortable') || t.includes('कोठा')) {
-    if (targetLang === 'en') return 'Is everything comfortable in your room?';
-    if (targetLang === 'ne') return 'के तपाईंको कोठामा सबै कुरा आरामदायी छ?';
-    if (targetLang === 'hi') return 'क्या कमरे में सब कुछ आरामदायक है?';
-    if (targetLang === 'bn') return 'ঘরে কি সবকিছু ঠিকঠাক আছে?';
-    return 'Is everything comfortable in your room?';
+  // 10. Bill / Payment
+  if (t.includes('bill') || t.includes('payment') || t.includes('बिल') || t.includes('पैसा') || t.includes('টাকা') || t.includes('বিল')) {
+    if (targetLang === 'en') return 'How much is the bill?';
+    if (targetLang === 'hi') return 'बिल कितना हुआ?';
+    if (targetLang === 'ne') return 'बिल कति भयो?';
+    if (targetLang === 'bn') return 'বিল কত হয়েছে?';
   }
 
-  // Welcome queries
-  if (t.includes('welcome') || t.includes('hello') || t.includes('namaste') || t.includes('स्वागत')) {
+  // 11. Thank you
+  if (t.includes('thank') || t.includes('धन्यवाद') || t.includes('ধন্যবাদ')) {
+    if (targetLang === 'en') return 'Thank you very much.';
+    if (targetLang === 'hi') return 'आपका बहुत-बहुत धन्यवाद।';
+    if (targetLang === 'ne') return 'यहाँलाई धेरै धेरै धन्यवाद।';
+    if (targetLang === 'bn') return 'আপনাকে অনেক ধন্যবাদ।';
+  }
+
+  // 12. Welcome
+  if (t.includes('welcome') || t.includes('hello') || t.includes('namaste') || t.includes('नमस्ते') || t.includes('स्वागत') || t.includes('স্বাগতম')) {
     if (targetLang === 'en') return 'Welcome to our homestay.';
-    if (targetLang === 'ne') return 'हाम्रो होमस्टेमा यहाँलाई स्वागत छ।';
     if (targetLang === 'hi') return 'हमारे होमस्टे में आपका स्वागत है।';
+    if (targetLang === 'ne') return 'हाम्रो होमस्टेमा यहाँलाई स्वागत छ।';
     if (targetLang === 'bn') return 'আমাদের হোমস্টেতে আপনাকে স্বাগতম।';
-    return 'Welcome to our homestay.';
   }
 
-  // Default fallback keeping language tone
-  if (targetLang === 'en') return text;
-  if (targetLang === 'ne') return `[नेपाली] ${text}`;
-  if (targetLang === 'hi') return `[हिन्दी] ${text}`;
-  if (targetLang === 'bn') return `[বাংলা] ${text}`;
+  // 13. Good morning
+  if (t.includes('good morning') || t.includes('सुप्रभात') || t.includes('शुभ प्रभात') || t.includes('সুপ্রভাত')) {
+    if (targetLang === 'en') return 'Good morning.';
+    if (targetLang === 'hi') return 'शुभ प्रभात।';
+    if (targetLang === 'ne') return 'शुभ प्रभात।';
+    if (targetLang === 'bn') return 'সুপ্রভাত।';
+  }
+
   return text;
 }
 

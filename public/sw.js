@@ -48,6 +48,8 @@ self.addEventListener('fetch', (event) => {
   const isDevHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
   const isViteOrDevAsset =
     url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/wasm/') ||
+    url.pathname.includes('ort-wasm') ||
     url.pathname.includes('node_modules') ||
     url.pathname.includes('vite') ||
     url.pathname.includes('hot-update') ||
