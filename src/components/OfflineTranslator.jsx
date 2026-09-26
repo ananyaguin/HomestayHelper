@@ -33,11 +33,9 @@ export default function OfflineTranslator({
   const [internalTargetLang, setInternalTargetLang] = useState('ne');
   const [inputText, setInputText] = useState('');
   const [outputText, setOutputText] = useState('');
-  const [originalTranslatedText, setOriginalTranslatedText] = useState('');
-  const [activeAction, setActiveAction] = useState(null); // 'polite' | 'shorter' | 'explain' | null
-  const [explanationData, setExplanationData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isSpeakToSpeakListening, setIsSpeakToSpeakListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechStatus, setSpeechStatus] = useState('idle'); // 'idle' | 'listening' | 'translating' | 'speaking'
   const [errorMessage, setErrorMessage] = useState('');
@@ -178,13 +176,10 @@ export default function OfflineTranslator({
 
     setErrorMessage('');
     setIsLoading(true);
-    setActiveAction(null);
-    setExplanationData(null);
 
     try {
       const translated = await performTranslation(query, activeSourceLang, activeTargetLang);
       setOutputText(translated);
-      setOriginalTranslatedText(translated);
     } catch (err) {
       console.error('Translation error:', err);
       setErrorMessage('Translation encountered an error. Please try again.');
@@ -194,23 +189,31 @@ export default function OfflineTranslator({
   };
 
   /**
-   * Speech-to-Text Flow:
-   * 1. Capture microphone voice
-   * 2. Convert voice -> text in input box
-   * 3. Does NOT automatically trigger translation
+   * 1. Speak-to-Text Flow:
+   * Captures user's voice in activeSourceLang and puts text into input box.
+   * Does NOT automatically trigger translation.
    */
-  const handleToggleSpeech = () => {
+  const handleToggleSpeechToText = () => {
+    if (isSpeaking) {
+      ttsService.stop();
+      setIsSpeaking(false);
+    }
+
     if (!speechRecognitionService.isSupported()) {
       setErrorMessage('Speech recognition is not supported in this browser. Please type your message.');
       return;
     }
 
-    // If currently listening, stop listening
-    if (isListening || speechStatus === 'listening') {
+    if (isListening) {
       speechRecognitionService.stop();
       setIsListening(false);
       setSpeechStatus('idle');
       return;
+    }
+
+    if (isSpeakToSpeakListening) {
+      speechRecognitionService.stop();
+      setIsSpeakToSpeakListening(false);
     }
 
     setErrorMessage('');
@@ -220,23 +223,16 @@ export default function OfflineTranslator({
     speechRecognitionService.start(
       activeSourceLang,
       (transcript) => {
-        if (!transcript || !transcript.trim()) {
-          setIsListening(false);
-          setSpeechStatus('idle');
-          return;
-        }
-
-        const cleanTranscript = transcript.trim();
-        setInputText(cleanTranscript);
         setIsListening(false);
         setSpeechStatus('idle');
+        if (transcript && transcript.trim()) {
+          setInputText(transcript.trim());
+        }
       },
       (errorEvent) => {
-        const errType = errorEvent?.error || errorEvent?.message || errorEvent;
-        console.warn('[STT] Speech recognition event:', errType);
         setIsListening(false);
         setSpeechStatus('idle');
-
+        const errType = errorEvent?.error || errorEvent?.message || errorEvent;
         if (errType === 'not-allowed' || (typeof errType === 'string' && errType.includes('denied'))) {
           setErrorMessage('Microphone access was denied. Please allow microphone access in your browser settings.');
         } else if (errType === 'no-speech') {
@@ -252,25 +248,139 @@ export default function OfflineTranslator({
     );
   };
 
-  const handleSpeakOutput = () => {
-    if (!outputText) return;
+  /**
+   * 2. Speak-to-Speak Flow:
+   * 🎤 User Speech (source) -> 📝 Speech-to-Text -> 🌐 Translation -> Target Text -> 🔊 Target Speech
+   * Works bidirectionally for all supported language pairs.
+   */
+  const handleToggleSpeakToSpeak = () => {
     if (isSpeaking) {
       ttsService.stop();
       setIsSpeaking(false);
+    }
+
+    if (!speechRecognitionService.isSupported()) {
+      setErrorMessage('Speech recognition is not supported in this browser. Please type your message.');
+      return;
+    }
+
+    if (isSpeakToSpeakListening) {
+      speechRecognitionService.stop();
+      setIsSpeakToSpeakListening(false);
       setSpeechStatus('idle');
       return;
     }
 
+    if (isListening) {
+      speechRecognitionService.stop();
+      setIsListening(false);
+    }
+
+    setErrorMessage('');
+    setIsSpeakToSpeakListening(true);
+    setSpeechStatus('listening');
+
+    speechRecognitionService.start(
+      activeSourceLang,
+      async (transcript) => {
+        setIsSpeakToSpeakListening(false);
+        const cleanTranscript = (transcript || '').trim();
+        if (!cleanTranscript) {
+          setSpeechStatus('idle');
+          return;
+        }
+
+        // 1 & 2. Display captured speech in input box
+        setInputText(cleanTranscript);
+        setSpeechStatus('translating');
+        setIsLoading(true);
+
+        try {
+          // 3. Translate source text -> target language using existing translation system
+          const translated = await performTranslation(cleanTranscript, activeSourceLang, activeTargetLang);
+
+          // 4. Display the translated target-language text
+          setOutputText(translated);
+          setIsLoading(false);
+
+          // 5. Automatically speak the translated target-language text
+          if (translated) {
+            setSpeechStatus('speaking');
+            setIsSpeaking(true);
+            ttsService.speak(
+              translated,
+              activeTargetLang,
+              () => {
+                setIsSpeaking(true);
+                setSpeechStatus('speaking');
+              },
+              () => {
+                setIsSpeaking(false);
+                setSpeechStatus('idle');
+              },
+              (voiceError) => {
+                setErrorMessage(voiceError);
+                setIsSpeaking(false);
+                setSpeechStatus('idle');
+              }
+            );
+          } else {
+            setSpeechStatus('idle');
+          }
+        } catch (err) {
+          console.error('[Speak-to-Speak] Translation error:', err);
+          setErrorMessage('Translation encountered an error. Please try again.');
+          setIsLoading(false);
+          setSpeechStatus('idle');
+        }
+      },
+      (errorEvent) => {
+        setIsSpeakToSpeakListening(false);
+        setSpeechStatus('idle');
+        const errType = errorEvent?.error || errorEvent?.message || errorEvent;
+        if (errType === 'not-allowed' || (typeof errType === 'string' && errType.includes('denied'))) {
+          setErrorMessage('Microphone access was denied. Please allow microphone access in your browser settings.');
+        } else if (errType === 'no-speech') {
+          setErrorMessage('No speech detected. Please speak clearly into your microphone.');
+        } else if (errType !== 'aborted') {
+          setErrorMessage('Voice recognition encountered an issue. Please try again or type.');
+        }
+      },
+      () => {
+        setIsSpeakToSpeakListening(false);
+        setSpeechStatus((prev) => (prev === 'listening' ? 'idle' : prev));
+      }
+    );
+  };
+
+  /**
+   * 3. Speak Translated Output Button:
+   * Speaks output text in the active target language.
+   * If clicked while speaking, stops previous speech and speaks latest output.
+   */
+  const handleSpeakOutput = () => {
+    const textToSpeak = (outputText || '').trim();
+    if (!textToSpeak) return;
+
+    setErrorMessage('');
     setIsSpeaking(true);
     setSpeechStatus('speaking');
+
+    // ttsService.speak stops any ongoing speech first (window.speechSynthesis.cancel()),
+    // then immediately speaks latest output in activeTargetLang.
     ttsService.speak(
-      outputText,
+      textToSpeak,
       activeTargetLang,
       () => {
         setIsSpeaking(true);
         setSpeechStatus('speaking');
       },
       () => {
+        setIsSpeaking(false);
+        setSpeechStatus('idle');
+      },
+      (voiceError) => {
+        setErrorMessage(voiceError);
         setIsSpeaking(false);
         setSpeechStatus('idle');
       }
@@ -289,132 +399,15 @@ export default function OfflineTranslator({
   };
 
   const handleClear = () => {
-    if (isListening) speechRecognitionService.stop();
-    if (isSpeaking) ttsService.stop();
+    speechRecognitionService.stop();
+    ttsService.stop();
     setIsListening(false);
+    setIsSpeakToSpeakListening(false);
     setIsSpeaking(false);
     setSpeechStatus('idle');
     setInputText('');
     setOutputText('');
-    setOriginalTranslatedText('');
-    setActiveAction(null);
-    setExplanationData(null);
     setErrorMessage('');
-  };
-
-  // --- ACTIONS: Make Polite, Make Shorter, Explain ---
-
-  const handleMakePolite = async () => {
-    if (!outputText) return;
-    const baseText = originalTranslatedText || outputText;
-
-    if (activeAction === 'polite') {
-      setOutputText(baseText);
-      setActiveAction(null);
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/phrase-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: baseText, action: 'polite', targetLang: activeTargetLang })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setOutputText(data.result);
-        setActiveAction('polite');
-        return;
-      }
-    } catch (e) {
-      // offline fallback
-    }
-
-    // Local offline polite transformation
-    let polite = baseText;
-    if (activeTargetLang === 'ne') {
-      polite = `हजुर, कृपया ${baseText.replace(/^(कृपया|हजुर)/g, '').trim()}।`;
-    } else if (activeTargetLang === 'hi') {
-      polite = `कृपया, ${baseText.replace(/^कृपया/g, '').trim()}।`;
-    } else if (activeTargetLang === 'bn') {
-      polite = `অনুগ্রহ করে, ${baseText.replace(/^অনুগ্রহ করে/g, '').trim()}।`;
-    } else {
-      polite = `Please kindly, ${baseText}`;
-    }
-    setOutputText(polite);
-    setActiveAction('polite');
-  };
-
-  const handleMakeShorter = async () => {
-    if (!outputText) return;
-    const baseText = originalTranslatedText || outputText;
-
-    if (activeAction === 'shorter') {
-      setOutputText(baseText);
-      setActiveAction(null);
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/phrase-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: baseText, action: 'shorter', targetLang: activeTargetLang })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setOutputText(data.result);
-        setActiveAction('shorter');
-        return;
-      }
-    } catch (e) {
-      // offline fallback
-    }
-
-    // Local offline shorter transformation
-    let shorter = baseText.replace(/^(कृपया|हजुर|अनुग्रह করে|Please|Kindly)[,\s]*/gi, '').trim();
-    if (shorter.endsWith('?') || shorter.endsWith('।') || shorter.endsWith('.')) {
-      shorter = shorter.slice(0, -1).trim();
-    }
-    setOutputText(shorter);
-    setActiveAction('shorter');
-  };
-
-  const handleExplain = async () => {
-    if (!outputText) return;
-    const baseText = originalTranslatedText || outputText;
-
-    if (activeAction === 'explain') {
-      setActiveAction(null);
-      setExplanationData(null);
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/phrase-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: baseText, action: 'explain', targetLang: activeTargetLang })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setExplanationData(data.explanation);
-        setActiveAction('explain');
-        return;
-      }
-    } catch (e) {
-      // offline fallback
-    }
-
-    // Local offline explanation
-    const langNames = { en: 'English', ne: 'Nepali', hi: 'Hindi', bn: 'Bengali' };
-    setExplanationData({
-      translated: baseText,
-      language: langNames[activeTargetLang] || activeTargetLang,
-      politeness: 'Polite & respectful hospitality phrasing',
-      context: 'Clear and natural hill homestay expression suitable for welcoming travelers and managing guest comfort.'
-    });
-    setActiveAction('explain');
   };
 
   const hasInputText = Boolean(inputText && inputText.trim());
@@ -504,45 +497,73 @@ export default function OfflineTranslator({
             className="w-full p-4 pb-12 text-slate-900 dark:text-slate-100 text-sm font-medium bg-slate-50/60 dark:bg-[#0b1612] border border-slate-200 dark:border-emerald-900/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500 resize-y placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed transition-colors shadow-inner"
           />
 
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleToggleSpeech}
-              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
-                speechStatus === 'listening'
-                  ? 'bg-rose-50 dark:bg-rose-950/90 text-rose-600 dark:text-rose-300 border-rose-300 dark:border-rose-500 animate-pulse shadow-md'
-                  : speechStatus === 'translating'
-                  ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600'
-                  : speechStatus === 'speaking'
-                  ? 'bg-amber-50 dark:bg-amber-950/90 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-500 animate-pulse shadow-md'
-                  : 'bg-white dark:bg-[#13231c] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-emerald-900/40 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
-              }`}
-            >
-              {speechStatus === 'listening' ? (
-                <>
-                  <Square className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
-                  <span>Listening...</span>
-                </>
-              ) : speechStatus === 'translating' ? (
-                <>
-                  <svg className="animate-spin h-3.5 w-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                  </svg>
-                  <span>Translating...</span>
-                </>
-              ) : speechStatus === 'speaking' ? (
-                <>
-                  <Volume2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-                  <span>Speaking...</span>
-                </>
-              ) : (
-                <>
-                  <Mic className="w-3.5 h-3.5 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
-                  <span>🎤 Speak</span>
-                </>
-              )}
-            </button>
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              {/* 🎤 Speak-to-Text Button */}
+              <button
+                type="button"
+                onClick={handleToggleSpeechToText}
+                title="Dictate speech into input box"
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                  isListening
+                    ? 'bg-rose-50 dark:bg-rose-950/90 text-rose-600 dark:text-rose-300 border-rose-300 dark:border-rose-500 animate-pulse shadow-md'
+                    : 'bg-white dark:bg-[#13231c] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-emerald-900/40 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
+                }`}
+              >
+                {isListening ? (
+                  <>
+                    <Square className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+                    <span>Listening...</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-3.5 h-3.5 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
+                    <span>🎤 Speak-to-Text</span>
+                  </>
+                )}
+              </button>
+
+              {/* 🗣️ Speak-to-Speak Button */}
+              <button
+                type="button"
+                onClick={handleToggleSpeakToSpeak}
+                title="Speak in source language and hear automatic target translation"
+                className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                  isSpeakToSpeakListening
+                    ? 'bg-rose-50 dark:bg-rose-950/90 text-rose-600 dark:text-rose-300 border-rose-300 dark:border-rose-500 animate-pulse shadow-md'
+                    : speechStatus === 'translating'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600'
+                    : speechStatus === 'speaking'
+                    ? 'bg-amber-50 dark:bg-amber-950/90 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-500 animate-pulse shadow-md'
+                    : 'bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/70'
+                }`}
+              >
+                {isSpeakToSpeakListening ? (
+                  <>
+                    <Square className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+                    <span>Listening...</span>
+                  </>
+                ) : speechStatus === 'translating' ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    </svg>
+                    <span>Translating...</span>
+                  </>
+                ) : speechStatus === 'speaking' ? (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                    <span>Speaking...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm">🗣️</span>
+                    <span>Speak-to-Speak</span>
+                  </>
+                )}
+              </button>
+            </div>
 
             {inputText && (
               <button
@@ -603,18 +624,13 @@ export default function OfflineTranslator({
             <span className="text-xs font-extrabold tracking-wider text-emerald-800 dark:text-emerald-400 uppercase">
               TRANSLATION ({activeTargetLang.toUpperCase()})
             </span>
-            {activeAction && (
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                Mode: {activeAction.toUpperCase()}
-              </span>
-            )}
           </div>
 
           <div className="text-slate-900 dark:text-slate-50 text-base sm:text-lg font-bold min-h-[44px] whitespace-pre-wrap leading-relaxed select-text p-3 bg-white dark:bg-[#13231c] rounded-xl border border-slate-200/70 dark:border-emerald-900/40">
             {outputText}
           </div>
 
-          {/* Action Buttons: [🔊 Listen] [Copy] [Make Polite] [Make Shorter] [Explain] */}
+          {/* Action Buttons: [🔊 Speak] [Copy] */}
           <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-emerald-900/30">
             <button
               type="button"
@@ -626,7 +642,7 @@ export default function OfflineTranslator({
               }`}
             >
               <Volume2 className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{isSpeaking ? 'Speaking...' : '🔊 Listen'}</span>
+              <span>{isSpeaking ? '🔊 Speaking...' : '🔊 Speak'}</span>
             </button>
 
             <button
@@ -646,61 +662,7 @@ export default function OfflineTranslator({
                 </>
               )}
             </button>
-
-            <button
-              type="button"
-              onClick={handleMakePolite}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border shadow-xs transition-colors cursor-pointer min-h-[36px] ${
-                activeAction === 'polite'
-                  ? 'bg-emerald-100 dark:bg-emerald-900/80 text-emerald-900 dark:text-emerald-100 border-emerald-400 dark:border-emerald-600'
-                  : 'bg-white dark:bg-[#13231c] border-slate-200 dark:border-emerald-900/50 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
-              }`}
-            >
-              <span>Make Polite</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleMakeShorter}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border shadow-xs transition-colors cursor-pointer min-h-[36px] ${
-                activeAction === 'shorter'
-                  ? 'bg-emerald-100 dark:bg-emerald-900/80 text-emerald-900 dark:text-emerald-100 border-emerald-400 dark:border-emerald-600'
-                  : 'bg-white dark:bg-[#13231c] border-slate-200 dark:border-emerald-900/50 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
-              }`}
-            >
-              <span>Make Shorter</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleExplain}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border shadow-xs transition-colors cursor-pointer min-h-[36px] ${
-                activeAction === 'explain'
-                  ? 'bg-emerald-100 dark:bg-emerald-900/80 text-emerald-900 dark:text-emerald-100 border-emerald-400 dark:border-emerald-600'
-                  : 'bg-white dark:bg-[#13231c] border-slate-200 dark:border-emerald-900/50 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
-              }`}
-            >
-              <span>Explain</span>
-            </button>
           </div>
-
-          {/* Explain Meaning Panel */}
-          {activeAction === 'explain' && explanationData && (
-            <div className="mt-3 p-3.5 rounded-xl bg-emerald-50/80 dark:bg-[#06150f] border border-emerald-200 dark:border-emerald-800/60 text-xs space-y-2 animate-fadeIn">
-              <div className="font-extrabold text-emerald-900 dark:text-emerald-300 flex items-center justify-between">
-                <span>Hospitality Meaning & Usage:</span>
-                <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
-                  {explanationData.language}
-                </span>
-              </div>
-              <p className="text-slate-700 dark:text-slate-200 leading-relaxed">
-                {explanationData.context}
-              </p>
-              <div className="text-[11px] text-emerald-800 dark:text-emerald-400 font-medium">
-                Tone: {explanationData.politeness}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

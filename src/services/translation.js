@@ -144,9 +144,11 @@ class TranslationService {
       return text.trim();
     }
 
-    // Check Indic -> Indic rule
+    // If both source and target are Indic languages (e.g. hi -> bn, ne -> hi),
+    // pivot seamlessly via English (Indic -> EN -> Indic) using existing local models
     if (sourceLanguage !== 'en' && targetLanguage !== 'en') {
-      throw new Error('Direct Indic-to-Indic translation is not enabled yet.');
+      const intermediateEnglish = await this.translateText(text, sourceLanguage, 'en');
+      return await this.translateText(intermediateEnglish, 'en', targetLanguage);
     }
 
     if (!this.worker) {

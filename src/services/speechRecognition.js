@@ -1,5 +1,5 @@
 // Web Speech API Speech-to-Text Service (Optimized for low CPU & clean lifecycle)
-class SpeechRecognitionService {
+export class SpeechRecognitionService {
   constructor() {
     this.recognition = null;
     this.isListening = false;

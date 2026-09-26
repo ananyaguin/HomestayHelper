@@ -80,7 +80,11 @@ export default function GuestCommunicator() {
       textToSpeak,
       targetLang,
       () => setActiveSpeakingId(phrase.id),
-      () => setActiveSpeakingId(null)
+      () => setActiveSpeakingId(null),
+      (voiceErr) => {
+        console.warn('[Communicator phrase voice notice]:', voiceErr);
+        setActiveSpeakingId(null);
+      }
     );
   }, [targetLang, activeSpeakingId]);
 
