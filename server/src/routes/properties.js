@@ -11,7 +11,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 function validateAndSerializeJson(val, fieldName) {
   if (val === undefined || val === null) {
-    return '{}';
+    return '[]';
   }
   if (typeof val === 'object') {
     return JSON.stringify(val);

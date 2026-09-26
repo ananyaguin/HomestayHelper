@@ -843,6 +843,7 @@ async function getGuestStay(token) {
       p.address AS property_address,
       p.wifi_ssid,
       p.wifi_password,
+      p.emergency_contacts,
       o.name AS host_name,
       o.phone AS host_phone
     FROM guest_tokens gt
@@ -896,6 +897,27 @@ async function getGuestStay(token) {
   const wifiPassword = row.wifi_password ? String(row.wifi_password).trim() : null;
   const wifiData = (wifiSsid && wifiPassword) ? { ssid: wifiSsid, password: wifiPassword } : null;
 
+  let parsedEmergencyContacts = [];
+  if (row.emergency_contacts) {
+    if (Array.isArray(row.emergency_contacts)) {
+      parsedEmergencyContacts = row.emergency_contacts;
+    } else if (typeof row.emergency_contacts === 'string') {
+      try {
+        const p = JSON.parse(row.emergency_contacts);
+        if (Array.isArray(p)) parsedEmergencyContacts = p;
+        else if (p && typeof p === 'object') parsedEmergencyContacts = Object.values(p);
+      } catch (e) {
+        parsedEmergencyContacts = [];
+      }
+    } else if (typeof row.emergency_contacts === 'object') {
+      parsedEmergencyContacts = Object.values(row.emergency_contacts);
+    }
+  }
+
+  parsedEmergencyContacts = parsedEmergencyContacts.filter(
+    (c) => c && typeof c === 'object' && (c.name || c.phone)
+  );
+
   return {
     expired: false,
     guest: {
@@ -907,7 +929,9 @@ async function getGuestStay(token) {
       name: row.property_name,
       address: row.property_address,
       hostName: row.host_name,
-      hostPhone: row.host_phone
+      hostPhone: row.host_phone,
+      emergencyContacts: parsedEmergencyContacts,
+      emergency_contacts: parsedEmergencyContacts
     },
     stay: {
       booking_id: row.booking_id,

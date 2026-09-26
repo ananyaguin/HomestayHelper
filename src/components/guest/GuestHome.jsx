@@ -44,6 +44,7 @@ export default function GuestHome({ data, token }) {
   const [copySuccess, setCopySuccess] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [confirmCancelReq, setConfirmCancelReq] = useState(null);
   const [isCancellingReq, setIsCancellingReq] = useState(false);
   const [selectedItem, setSelectedItem] = useState('Extra Towel');
@@ -167,8 +168,32 @@ export default function GuestHome({ data, token }) {
   const checkOutFormatted = stay?.check_out_raw ? formatShortDate(stay.check_out_raw) : (stay?.checkOut ? formatShortDate(stay.checkOut) : '');
   const stayDateText = checkInFormatted && checkOutFormatted ? `${checkInFormatted} → ${checkOutFormatted}` : '';
 
-  // Emergency contact resolution
-  const emergencyPhone = property?.emergencyPhone || property?.emergency_phone || property?.emergencyContact || (Array.isArray(property?.emergency_contacts) && property.emergency_contacts[0]?.phone) || null;
+  // Emergency contacts parsing from active property data
+  let rawContacts = property?.emergencyContacts || property?.emergency_contacts || [];
+  if (typeof rawContacts === 'string') {
+    try {
+      rawContacts = JSON.parse(rawContacts);
+    } catch (e) {
+      rawContacts = [];
+    }
+  }
+
+  let contactsArray = [];
+  if (Array.isArray(rawContacts)) {
+    contactsArray = rawContacts;
+  } else if (rawContacts && typeof rawContacts === 'object') {
+    if (Array.isArray(rawContacts.contacts)) {
+      contactsArray = rawContacts.contacts;
+    } else if (Array.isArray(rawContacts.emergencyContacts)) {
+      contactsArray = rawContacts.emergencyContacts;
+    } else {
+      contactsArray = Object.values(rawContacts);
+    }
+  }
+
+  const emergencyContactsList = contactsArray.filter(
+    (c) => c && typeof c === 'object' && (c.name || c.phone || c.number)
+  );
 
   return (
     <div className="space-y-3.5 max-w-md mx-auto w-full pb-8">
@@ -230,24 +255,14 @@ export default function GuestHome({ data, token }) {
             </button>
           )}
 
-          {emergencyPhone ? (
-            <a
-              href={`tel:${emergencyPhone}`}
-              className="h-9 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/60 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
-              <span>Emergency</span>
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={() => alert('Emergency Contact: Please contact your homestay host or local emergency services (112).')}
-              className="h-9 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/60 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
-              <span>Emergency</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowEmergencyModal(true)}
+            className="h-9 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/60 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+            <span>Emergency</span>
+          </button>
         </div>
       </div>
 
@@ -581,6 +596,73 @@ export default function GuestHome({ data, token }) {
               >
                 {isCancellingReq ? 'Cancelling...' : 'Yes, Cancel Request'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EMERGENCY CONTACTS MODAL */}
+      {showEmergencyModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0c1a14] rounded-2xl max-w-xs sm:max-w-sm w-full border border-slate-200 dark:border-emerald-900/60 shadow-2xl p-5 space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                  Emergency Contacts
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmergencyModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-0.5">
+              {emergencyContactsList.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-500 dark:text-slate-400">
+                  No emergency contact has been configured by the host.
+                </div>
+              ) : (
+                emergencyContactsList.map((contact, idx) => {
+                  const contactName = contact.name || contact.label || `Contact ${idx + 1}`;
+                  const contactPhone = contact.phone || contact.number || '';
+                  const cleanPhone = String(contactPhone).replace(/\s+/g, '');
+
+                  return (
+                    <div
+                      key={contact.id || idx}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-[#0b1612] border border-slate-200/80 dark:border-emerald-900/30 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900 dark:text-white truncate">
+                          {contactName}
+                        </div>
+                        {contactPhone && (
+                          <div className="text-slate-500 dark:text-slate-400 text-[11px] font-mono mt-0.5 truncate">
+                            {contactPhone}
+                          </div>
+                        )}
+                      </div>
+
+                      {cleanPhone ? (
+                        <a
+                          href={`tel:${cleanPhone}`}
+                          className="h-8 px-3 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-medium text-xs flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>Call</span>
+                        </a>
+                      ) : (
+                        <span className="text-slate-400 text-xs shrink-0 select-none">—</span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
