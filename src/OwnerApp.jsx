@@ -1364,89 +1364,162 @@ export default function OwnerApp({ onLogout }) {
 
           {/* TAB 6: REQUESTS */}
           {activeTab === 'tabRequests' && (
-            <div className="bg-white dark:bg-[#0f1d17] p-4 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30 gap-3">
+            <div className="bg-white dark:bg-[#0f1d17] p-3.5 sm:p-5 rounded-xl border border-slate-200/80 dark:border-emerald-900/40 space-y-3">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-emerald-900/30 gap-2.5">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Bell className="w-5 h-5 text-amberGold" aria-hidden="true" />
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                     <span>Guest Requests — {activePropertyName}</span>
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Real-time guest requests submitted for active stay rooms.
+                    Real-time guest requests for active stay rooms.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => loadRoomsAndBookings(activePropertyId)}
                     title="Refresh Requests"
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900/40 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    className="h-8 px-3 rounded-md border border-slate-200 dark:border-emerald-900/50 bg-white dark:bg-[#0c1a14] text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>Refresh</span>
                   </button>
-                  <span className="text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950 px-2.5 py-1 rounded-md border border-amber-200 dark:border-amber-800">
+                  <span className="h-8 px-2.5 rounded-md text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                     {pendingRequestsCount} Pending
                   </span>
                 </div>
               </div>
 
-              <div className="space-y-2.5">
+              {/* Requests List */}
+              <div className="space-y-2">
                 {ownerRequests.length === 0 ? (
-                  <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
+                  <div className="py-10 text-center text-xs text-slate-500 dark:text-slate-400">
                     No guest requests submitted for this property yet.
                   </div>
                 ) : (
                   ownerRequests.map((req) => {
                     const statusUpper = (req.status || 'PENDING').toUpperCase();
-                    let badgeClass = 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-                    let statusText = 'Pending';
+                    let badgeClass = 'bg-amber-50 text-amber-700 border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/60';
+                    let statusText = 'PENDING';
                     if (statusUpper === 'IN_PROGRESS' || statusUpper === 'ACCEPTED') {
-                      badgeClass = 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border-sky-200 dark:border-sky-800';
-                      statusText = 'In Progress';
+                      badgeClass = 'bg-sky-50 text-sky-700 border-sky-200/80 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-900/60';
+                      statusText = 'IN PROGRESS';
                     } else if (statusUpper === 'COMPLETED') {
-                      badgeClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
-                      statusText = 'Completed';
+                      badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900/60';
+                      statusText = 'COMPLETED';
                     } else if (statusUpper === 'REJECTED') {
-                      badgeClass = 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-200 dark:border-rose-800';
-                      statusText = 'Declined';
+                      badgeClass = 'bg-rose-50 text-rose-700 border-rose-200/80 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60';
+                      statusText = 'DECLINED';
                     } else if (statusUpper === 'CANCELLED') {
-                      badgeClass = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700';
-                      statusText = 'Cancelled';
+                      badgeClass = 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
+                      statusText = 'CANCELLED';
                     }
 
                     const isUpdating = updatingRequestId === req.id;
-                    const canRemove = ['COMPLETED', 'REJECTED', 'CANCELLED'].includes(statusUpper);
+                    const isResolved = ['COMPLETED', 'REJECTED', 'CANCELLED'].includes(statusUpper);
+                    const canRemove = isResolved;
+
+                    const reqTime = req.created_at
+                      ? new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : '';
+                    const resTime = req.resolved_at
+                      ? new Date(req.resolved_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : null;
 
                     return (
                       <div
                         key={req.id}
-                        className="p-3.5 rounded-xl bg-slate-50 dark:bg-[#0b1612] border border-slate-200/70 dark:border-emerald-900/30 space-y-2 transition-all"
+                        className={`p-3 sm:px-4 sm:py-3 rounded-lg border transition-all ${
+                          isResolved
+                            ? 'bg-slate-50/50 dark:bg-[#0b1612]/40 border-slate-200/60 dark:border-emerald-900/20 opacity-85 hover:opacity-100'
+                            : 'bg-white dark:bg-[#0b1612] border-slate-200/90 dark:border-emerald-900/40 shadow-2xs'
+                        }`}
                       >
-                        {/* Top Row: Item Name, Room & Guest, Status & Trash Action */}
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-2 min-w-0">
-                            <span className="font-extrabold text-sm text-slate-900 dark:text-white">
-                              {req.type}
-                            </span>
-                            <span className="text-slate-300 dark:text-slate-600 font-normal text-xs">•</span>
-                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 truncate">
-                              {req.room_name || 'Room'} · {req.guest_name}
-                            </span>
-                            {req.guest_phone && req.guest_phone !== 'N/A' && (
-                              <span className="text-[11px] text-slate-400">({req.guest_phone})</span>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          {/* LEFT INFO */}
+                          <div className="min-w-0 space-y-1">
+                            {/* Request Title & Status Badge inline */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-xs sm:text-sm font-bold ${isResolved ? 'text-slate-700 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>
+                                {req.type}
+                              </span>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border uppercase tracking-wider ${badgeClass}`}>
+                                {statusText}
+                              </span>
+                            </div>
+
+                            {/* Details line: Room · Guest name · Requested time · (Resolved time) */}
+                            <div className="flex items-center gap-1.5 flex-wrap text-xs text-slate-500 dark:text-slate-400">
+                              <span className="font-medium text-slate-700 dark:text-slate-300">{req.room_name || 'Room'}</span>
+                              <span>·</span>
+                              <span>{req.guest_name}</span>
+                              {req.guest_phone && req.guest_phone !== 'N/A' && (
+                                <span className="text-[11px] text-slate-400">({req.guest_phone})</span>
+                              )}
+                              {reqTime && (
+                                <>
+                                  <span>·</span>
+                                  <span>Requested {reqTime}</span>
+                                </>
+                              )}
+                              {isResolved && resTime && (
+                                <span className="ml-1 sm:ml-2 text-slate-400 dark:text-slate-500">
+                                  Resolved {resTime}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Note line (only if note exists) */}
+                            {req.note && (
+                              <div className="text-xs text-slate-600 dark:text-slate-300 pt-0.5">
+                                <span className="text-slate-400 dark:text-slate-500 font-medium">Note: </span>
+                                <span className="italic">"{req.note}"</span>
+                              </div>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${badgeClass}`}>
-                              {statusText}
-                            </span>
+                          {/* RIGHT ACTIONS */}
+                          <div className="flex items-center gap-2 shrink-0 justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-emerald-900/20">
+                            {statusUpper === 'PENDING' && (
+                              <>
+                                <button
+                                  disabled={isUpdating}
+                                  onClick={() => handleUpdateRequestStatus(req.id, 'IN_PROGRESS')}
+                                  className="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Accept</span>
+                                </button>
+                                <button
+                                  disabled={isUpdating}
+                                  onClick={() => handleUpdateRequestStatus(req.id, 'REJECTED')}
+                                  className="h-8 px-3 rounded-md border border-slate-200 dark:border-emerald-900/60 bg-white dark:bg-[#0c1a14] hover:bg-slate-50 dark:hover:bg-emerald-950 text-slate-700 dark:text-slate-300 disabled:opacity-50 text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  <span>Decline</span>
+                                </button>
+                              </>
+                            )}
+
+                            {(statusUpper === 'IN_PROGRESS' || statusUpper === 'ACCEPTED') && (
+                              <button
+                                disabled={isUpdating}
+                                onClick={() => handleUpdateRequestStatus(req.id, 'COMPLETED')}
+                                className="h-8 px-3 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Complete</span>
+                              </button>
+                            )}
+
                             {canRemove && (
                               <button
                                 type="button"
                                 onClick={() => setConfirmRemoveReq(req)}
-                                className="p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-950/80 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                                className="h-8 px-2 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/60 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer flex items-center gap-1"
                                 title="Remove Request"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1454,66 +1527,16 @@ export default function OwnerApp({ onLogout }) {
                             )}
                           </div>
                         </div>
-
-                        {/* Bottom Row: Note & Timestamp */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 pt-0.5">
-                          <div className="min-w-0 flex-1">
-                            {req.note ? (
-                              <p className="text-xs text-slate-600 dark:text-slate-300 italic truncate">
-                                Note: "{req.note}"
-                              </p>
-                            ) : (
-                              <span className="text-[11px] text-slate-400">
-                                Requested {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            )}
-                          </div>
-
-                          {req.note && (
-                            <span className="text-[11px] text-slate-400 shrink-0">
-                              Requested {new Date(req.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Action Buttons for Pending or In Progress */}
-                        {(statusUpper === 'PENDING' || statusUpper === 'IN_PROGRESS') && (
-                          <div className="flex flex-wrap items-center justify-end gap-1.5 pt-1 border-t border-slate-200/50 dark:border-emerald-900/20">
-                            {statusUpper === 'PENDING' && (
-                              <button
-                                disabled={isUpdating}
-                                onClick={() => handleUpdateRequestStatus(req.id, 'IN_PROGRESS')}
-                                className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer min-h-[32px]"
-                              >
-                                Accept
-                              </button>
-                            )}
-                            <button
-                              disabled={isUpdating}
-                              onClick={() => handleUpdateRequestStatus(req.id, 'COMPLETED')}
-                              className="px-3 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold transition-all cursor-pointer min-h-[32px]"
-                            >
-                              Complete
-                            </button>
-                            <button
-                              disabled={isUpdating}
-                              onClick={() => handleUpdateRequestStatus(req.id, 'REJECTED')}
-                              className="px-3 py-1 rounded-lg border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950 disabled:opacity-50 text-xs font-bold transition-all cursor-pointer min-h-[32px]"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        )}
                       </div>
                     );
                   })
                 )}
               </div>
 
-              {/* OWNER REMOVE REQUEST CONFIRMATION MODAL */}
+              {/* REMOVE REQUEST MODAL */}
               {confirmRemoveReq && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-                  <div className="bg-white dark:bg-[#0c1a14] rounded-2xl max-w-xs w-full border border-slate-200 dark:border-emerald-900/60 shadow-2xl p-4 space-y-3 animate-fadeIn">
+                  <div className="bg-white dark:bg-[#0c1a14] rounded-xl max-w-xs w-full border border-slate-200 dark:border-emerald-900/60 shadow-2xl p-4 space-y-3 animate-fadeIn">
                     <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-bold text-sm">
                       <Trash2 className="w-4 h-4 shrink-0" />
                       <span>Remove Request?</span>
@@ -1525,7 +1548,7 @@ export default function OwnerApp({ onLogout }) {
                       <button
                         type="button"
                         onClick={() => setConfirmRemoveReq(null)}
-                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900/60 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-emerald-950 cursor-pointer"
+                        className="h-8 px-3 rounded-md border border-slate-200 dark:border-emerald-900/60 text-slate-600 dark:text-slate-300 text-xs font-medium hover:bg-slate-100 dark:hover:bg-emerald-950 cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -1533,7 +1556,7 @@ export default function OwnerApp({ onLogout }) {
                         type="button"
                         disabled={isRemovingReq}
                         onClick={handleRemoveOwnerRequest}
-                        className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer transition-all shadow-xs min-h-[32px]"
+                        className="h-8 px-3.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer transition-colors"
                       >
                         {isRemovingReq ? 'Removing...' : 'Yes, Remove'}
                       </button>
