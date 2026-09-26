@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { mockGuestData } from './data/mockGuestData';
 import GuestHome from './components/guest/GuestHome';
 import { Sun, Moon, Clock, AlertCircle } from 'lucide-react';
 
@@ -34,7 +33,7 @@ export default function GuestApp() {
     async function fetchStay() {
       if (!token) {
         setIsLoading(false);
-        setStayData(mockGuestData);
+        setError('No stay token provided.');
         return;
       }
       setIsLoading(true);
@@ -45,19 +44,18 @@ export default function GuestApp() {
           const data = await res.json();
           if (isMounted) setStayData(data);
         } else {
-          // If network or endpoint fails, check if fallback to mock
           const errData = await res.json().catch(() => ({}));
           if (isMounted) {
             if (errData.expired) {
               setStayData({ expired: true, message: 'Stay Expired' });
             } else {
-              setStayData(mockGuestData);
+              setError(errData.message || 'Failed to load stay information.');
             }
           }
         }
       } catch (err) {
-        console.warn('Failed to fetch real stay data, falling back to mock data:', err);
-        if (isMounted) setStayData(mockGuestData);
+        console.warn('Failed to fetch real stay data:', err);
+        if (isMounted) setError('Network error loading stay details.');
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -74,7 +72,7 @@ export default function GuestApp() {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  const propertyName = stayData?.property?.name || mockGuestData.property.name;
+  const propertyName = stayData?.property?.name || 'Guest Companion';
 
   return (
     <div className="min-h-screen bg-[#f4f7f5] dark:bg-[#080f0c] text-slate-800 dark:text-slate-100 selection:bg-emerald-800 selection:text-white transition-colors duration-200">
@@ -119,6 +117,14 @@ export default function GuestApp() {
             <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-xs text-slate-500 font-medium">Loading your stay information...</p>
           </div>
+        ) : error ? (
+          <div className="bg-white dark:bg-[#0f1d17] p-6 rounded-2xl border border-rose-200 dark:border-rose-900/40 text-center space-y-3 shadow-lg my-6">
+            <div className="w-12 h-12 bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">Unable to Load Stay</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{error}</p>
+          </div>
         ) : stayData?.expired ? (
           <div className="bg-white dark:bg-[#0f1d17] p-6 rounded-2xl border border-amber-200 dark:border-amber-900/40 text-center space-y-4 shadow-lg my-6">
             <div className="w-14 h-14 bg-amber-100 dark:bg-amber-950/70 text-amber-600 dark:text-amber-400 rounded-full flex items-center justify-center mx-auto">
@@ -140,7 +146,7 @@ export default function GuestApp() {
             </div>
           </div>
         ) : (
-          <GuestHome data={stayData} />
+          <GuestHome data={stayData} token={token} />
         )}
       </main>
     </div>

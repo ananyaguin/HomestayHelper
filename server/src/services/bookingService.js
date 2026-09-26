@@ -841,6 +841,8 @@ async function getGuestStay(token) {
       p.id AS property_id,
       p.name AS property_name,
       p.address AS property_address,
+      p.wifi_ssid,
+      p.wifi_password,
       o.name AS host_name,
       o.phone AS host_phone
     FROM guest_tokens gt
@@ -890,6 +892,10 @@ async function getGuestStay(token) {
 
   const status = computeBookingStatus(row.check_in, row.check_out, row.db_status);
 
+  const wifiSsid = row.wifi_ssid ? String(row.wifi_ssid).trim() : null;
+  const wifiPassword = row.wifi_password ? String(row.wifi_password).trim() : null;
+  const wifiData = (wifiSsid && wifiPassword) ? { ssid: wifiSsid, password: wifiPassword } : null;
+
   return {
     expired: false,
     guest: {
@@ -914,10 +920,7 @@ async function getGuestStay(token) {
       totalGuests: row.total_guests,
       status
     },
-    wifi: {
-      ssid: `${row.property_name.replace(/\s+/g, '')}_Guest`,
-      password: `welcome${new Date(row.check_in).getFullYear()}`
-    },
+    wifi: wifiData,
     guests: guestsRes.rows
   };
 }
