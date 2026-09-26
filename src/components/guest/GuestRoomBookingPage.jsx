@@ -26,7 +26,7 @@ export default function GuestRoomBookingPage() {
   const [stayDuration, setStayDuration] = useState(1);
   const [totalGuests, setTotalGuests] = useState(1);
   const [guestsList, setGuestsList] = useState([
-    { name: '', phone: '', email: '', id_photo: null, id_photo_name: '' }
+    { name: '', phone: '', email: '', id_type: 'Aadhaar', id_number: '', id_photo: null, id_photo_name: '' }
   ]);
 
   const [formErrors, setFormErrors] = useState({});
@@ -51,7 +51,7 @@ export default function GuestRoomBookingPage() {
             if (totalGuests > roomCap) {
               setTotalGuests(1);
               setGuestsList([
-                { name: '', phone: '', email: '', id_photo: null, id_photo_name: '' }
+                { name: '', phone: '', email: '', id_type: 'Aadhaar', id_number: '', id_photo: null, id_photo_name: '' }
               ]);
             }
           }
@@ -86,7 +86,7 @@ export default function GuestRoomBookingPage() {
     setGuestsList((prev) => {
       const updated = [...prev];
       while (updated.length < count) {
-        updated.push({ name: '', phone: '', email: '', id_photo: null, id_photo_name: '' });
+        updated.push({ name: '', phone: '', email: '', id_type: 'Aadhaar', id_number: '', id_photo: null, id_photo_name: '' });
       }
       return updated.slice(0, count);
     });
@@ -148,12 +148,16 @@ export default function GuestRoomBookingPage() {
         guest_name: primaryGuest.name.trim(),
         guest_phone: primaryGuest.phone.trim(),
         email: primaryGuest.email?.trim() || undefined,
+        id_type: primaryGuest.id_type || undefined,
+        id_number: primaryGuest.id_number?.trim() || undefined,
         total_guests: totalGuests,
         stay_duration: parseInt(stayDuration, 10) || 1,
         guests: guestsList.map((g, idx) => ({
           name: g.name.trim() || `Guest ${idx + 1}`,
           phone: g.phone?.trim() || (idx === 0 ? primaryGuest.phone.trim() : undefined),
           email: g.email?.trim() || (idx === 0 ? primaryGuest.email?.trim() : undefined),
+          id_type: g.id_type || undefined,
+          id_number: g.id_number?.trim() || undefined,
           id_photo: g.id_photo || undefined,
           is_primary: idx === 0
         }))
@@ -463,6 +467,38 @@ export default function GuestRoomBookingPage() {
                     </div>
                   </>
                 )}
+
+                {/* ID Type & Number */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      ID Type <span className="text-slate-400">(Optional)</span>
+                    </label>
+                    <select
+                      value={guest.id_type || 'Aadhaar'}
+                      onChange={(e) => handleGuestChange(idx, 'id_type', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200/80 dark:border-emerald-900/40 text-xs bg-white dark:bg-[#07130e] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="Aadhaar">Aadhaar</option>
+                      <option value="Passport">Passport</option>
+                      <option value="Voter ID">Voter ID</option>
+                      <option value="Driving Licence">Driving Licence</option>
+                      <option value="Other">Other Government ID</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+                      ID Number <span className="text-slate-400">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={guest.id_number || ''}
+                      onChange={(e) => handleGuestChange(idx, 'id_number', e.target.value)}
+                      placeholder="e.g. 1234 5678 9012"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200/80 dark:border-emerald-900/40 text-xs bg-white dark:bg-[#07130e] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
 
                 {/* ID Photo Upload for Guest */}
                 <div>

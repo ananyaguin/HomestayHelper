@@ -139,9 +139,12 @@ async function getBookings(ownerId) {
             'name', g.name,
             'phone', g.phone,
             'email', g.email,
+            'id_type', g.id_type,
+            'id_number', g.id_number,
             'id_photo', g.id_photo,
             'is_primary', g.is_primary
           )
+          ORDER BY g.is_primary DESC, g.created_at ASC
         ) FILTER (WHERE g.id IS NOT NULL), '[]'
       ) AS guests
     FROM bookings b
@@ -155,6 +158,103 @@ async function getBookings(ownerId) {
 
   const result = await pool.query(query, [ownerId]);
   return result.rows.map(formatBooking);
+}
+
+/**
+ * Retrieves a single booking scoped strictly to the authenticated owner.
+ * Returns { booking, guests, ledger }.
+ * Returns 404 if booking not found or belongs to another owner.
+ */
+async function getBookingById(ownerId, bookingId) {
+  if (!ownerId) {
+    const err = new Error('Unauthorized');
+    err.status = 401;
+    throw err;
+  }
+
+  if (!bookingId || !UUID_REGEX.test(bookingId)) {
+    const err = new Error('Booking not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const query = `
+    SELECT 
+      b.id,
+      b.room_id,
+      b.guest_name,
+      b.guest_phone,
+      b.check_in,
+      b.check_out,
+      b.total_guests,
+      b.status AS db_status,
+      b.created_at,
+      r.name AS room_name,
+      r.price AS room_price,
+      p.id AS property_id,
+      p.name AS property_name,
+      COALESCE(
+        json_agg(
+          json_build_object(
+            'id', g.id,
+            'name', g.name,
+            'phone', g.phone,
+            'email', g.email,
+            'id_type', g.id_type,
+            'id_number', g.id_number,
+            'id_photo', g.id_photo,
+            'is_primary', g.is_primary
+          )
+          ORDER BY g.is_primary DESC, g.created_at ASC
+        ) FILTER (WHERE g.id IS NOT NULL), '[]'
+      ) AS guests
+    FROM bookings b
+    JOIN rooms r ON b.room_id = r.id
+    JOIN properties p ON r.property_id = p.id
+    LEFT JOIN guests g ON g.booking_id = b.id
+    WHERE b.id = $1 AND p.owner_id = $2
+    GROUP BY b.id, r.name, r.price, p.id, p.name
+  `;
+
+  const result = await pool.query(query, [bookingId, ownerId]);
+  if (result.rows.length === 0) {
+    const err = new Error('Booking not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const formattedBooking = formatBooking(result.rows[0]);
+  const guests = Array.isArray(result.rows[0].guests) ? result.rows[0].guests : [];
+
+  // Fetch ledger entries for booking
+  const ledgerRes = await pool.query(
+    `SELECT id, type, amount, currency, description, note, payment_method, created_at 
+     FROM ledger_entries 
+     WHERE booking_id = $1 
+     ORDER BY created_at ASC`,
+    [bookingId]
+  );
+  const entries = ledgerRes.rows;
+  const totalCharges = entries
+    .filter(e => e.type === 'charge')
+    .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
+    .toFixed(2);
+  const totalPayments = entries
+    .filter(e => e.type === 'payment')
+    .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0)
+    .toFixed(2);
+  const balance = (parseFloat(totalCharges) - parseFloat(totalPayments)).toFixed(2);
+
+  return {
+    booking: formattedBooking,
+    guests,
+    ledger: {
+      entries,
+      totalCharges,
+      totalPayments,
+      balance
+    }
+  };
 }
 
 /**
@@ -601,6 +701,8 @@ async function createGuestBooking(roomId, data) {
         name: guestName,
         phone: guestPhone,
         email: data.email || null,
+        id_type: data.id_type || data.idType || null,
+        id_number: data.id_number || data.idNumber || null,
         id_photo: data.id_photo || data.idPhoto || data.id_document || data.idDocument || null,
         is_primary: true
       }
@@ -637,19 +739,23 @@ async function createGuestBooking(roomId, data) {
       const gName = (g.name || (i === 0 ? guestName : `Guest ${i + 1}`)).trim();
       const gPhone = g.phone ? String(g.phone).trim() : (i === 0 ? guestPhone : null);
       const gEmail = g.email ? String(g.email).trim() : (i === 0 ? (data.email || null) : null);
+      const gIdType = g.id_type || g.idType || (i === 0 ? (data.id_type || data.idType || null) : null);
+      const gIdNumber = g.id_number || g.idNumber || (i === 0 ? (data.id_number || data.idNumber || null) : null);
       const gIdPhoto = g.id_photo || g.idPhoto || g.id_document || g.idDocument || (i === 0 ? (data.id_photo || null) : null);
       const isPrimary = i === 0 || g.is_primary === true;
 
       const insertGuestSql = `
-        INSERT INTO guests (booking_id, name, phone, email, id_photo, is_primary)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, booking_id, name, phone, email, id_photo, is_primary, created_at
+        INSERT INTO guests (booking_id, name, phone, email, id_type, id_number, id_photo, is_primary)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id, booking_id, name, phone, email, id_type, id_number, id_photo, is_primary, created_at
       `;
       const guestRes = await client.query(insertGuestSql, [
         booking.id,
         gName,
         gPhone,
         gEmail,
+        gIdType,
+        gIdNumber,
         gIdPhoto,
         isPrimary
       ]);
@@ -777,7 +883,10 @@ async function getGuestStay(token) {
 
   // Get all guests for this stay
   const guestsRes = await pool.query(
-    `SELECT id, name, phone, email, id_photo, is_primary FROM guests WHERE booking_id = $1 ORDER BY is_primary DESC, created_at ASC`,
+    `SELECT id, name, phone, email, id_type, id_number, id_photo, is_primary 
+     FROM guests 
+     WHERE booking_id = $1 
+     ORDER BY is_primary DESC, created_at ASC`,
     [row.booking_id]
   );
 
@@ -822,6 +931,7 @@ module.exports = {
   formatBooking,
   checkRoomOverlap,
   getBookings,
+  getBookingById,
   createBooking,
   updateBooking,
   checkIn,

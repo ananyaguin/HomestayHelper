@@ -28,6 +28,23 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /api/bookings/:id
+ * Returns booking details, all guests, and ledger scoped strictly to authenticated owner.
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const result = await bookingService.getBookingById(req.ownerId, req.params.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Error fetching booking details:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/bookings
  * Creates a new booking and associated guest row. Initial status is 'upcoming'.
  */
