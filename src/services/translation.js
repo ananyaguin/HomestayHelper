@@ -59,12 +59,13 @@ class TranslationService {
         }
 
         if (id && this.pendingRequests.has(id)) {
-          const { resolve, reject } = this.pendingRequests.get(id);
-          this.pendingRequests.delete(id);
-
           if (msgType === 'result' || success === true) {
+            const { resolve } = this.pendingRequests.get(id);
+            this.pendingRequests.delete(id);
             resolve(translatedText);
           } else if (msgType === 'error' || success === false) {
+            const { reject } = this.pendingRequests.get(id);
+            this.pendingRequests.delete(id);
             reject(new Error(error || 'Translation request failed'));
           }
         }

@@ -462,12 +462,20 @@ export default function OwnerApp({ onLogout }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // 3. Register Service Worker
+    // 3. Register Service Worker (Production only)
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('./sw.js')
-        .then((reg) => console.log('[PWA] Service Worker registered:', reg.scope))
-        .catch((err) => console.warn('[PWA] Service Worker registration failed:', err));
+      if (import.meta.env.PROD) {
+        navigator.serviceWorker
+          .register('./sw.js')
+          .then((reg) => console.log('[PWA] Service Worker registered:', reg.scope))
+          .catch((err) => console.warn('[PWA] Service Worker registration failed:', err));
+      } else {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const reg of registrations) {
+            reg.unregister();
+          }
+        });
+      }
     }
 
     // 4. Standalone & PWA Install Prompt Listeners

@@ -44,9 +44,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // 2. Bypass service worker entirely in localhost / development mode or for Vite HMR assets
+  const isDevHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  const isViteOrDevAsset =
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('node_modules') ||
+    url.pathname.includes('vite') ||
+    url.pathname.includes('hot-update') ||
+    url.search.includes('t=');
+
+  if (isDevHost || isViteOrDevAsset) {
+    return;
+  }
+
   const isOllamaOrApi = url.pathname.includes('/api/ollama') || url.pathname.startsWith('/api/') || url.port === '11434';
 
-  // 2. Pass-through for non-GET requests and Ollama / API requests without caching or interception
+  // 3. Pass-through for non-GET requests and Ollama / API requests without caching or interception
   if (event.request.method !== 'GET' || isOllamaOrApi) {
     return;
   }

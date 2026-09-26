@@ -4,7 +4,11 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 8080,
+    port: 8081,
+    hmr: {
+      port: 8081,
+      clientPort: 8081
+    },
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp'
@@ -22,7 +26,7 @@ export default defineConfig({
     }
   },
   preview: {
-    port: 8080,
+    port: 8081,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp'

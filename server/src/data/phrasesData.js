@@ -197,7 +197,7 @@ const HOMESTAY_PHRASES = [
     nepali: "के तपाईंलाई कोठाको लागि केही चाहिन्छ?",
     en: "Do you need anything for your room?",
     hi: "क्या आपको अपने कमरे के लिए किसी चीज की जरूरत है?",
-    bn: "ঘরের জন্য কি আপনার कुछ লাগবে?",
+    bn: "ঘরের জন্য কি আপনার কিছু লাগবে?",
     ne: "के तपाईंलाई कोठाको लागि केही चाहिन्छ?"
   },
   {
@@ -247,7 +247,7 @@ const HOMESTAY_PHRASES = [
     categoryId: "directions",
     english: "The taxi stand is nearby.",
     hindi: "टैक्सी स्टैंड पास में ही है।",
-    bengali: "ট্যাক্সি स्टैंड पास में ही है।",
+    bengali: "ট্যাক্সি স্ট্যান্ড কাছেই আছে।",
     nepali: "ट्याक्सी स्ट्यान्ड नजिकै छ।",
     en: "The taxi stand is nearby.",
     hi: "टैक्सी स्टैंड पास में ही है।",
@@ -287,73 +287,34 @@ const HOMESTAY_PHRASES = [
     category: "Payment",
     categoryId: "payment",
     english: "You can pay by cash or UPI.",
-    hindi: "आप नकद या UPI द्वारा भुग  }
-];
-
-// --- COMMON GUEST & HOMESTAY FAST LOOKUP PHRASES ---
-const COMMON_GUEST_REQUESTS = [
-  {
-    id: "common-01",
-    category: "Common Requests",
-    categoryId: "common",
-    english: "Can I have another blanket?",
-    hindi: "क्या मुझे एक और कंबल मिल सकता है?",
-    bengali: "আমি কি আরেকটি কম্বল পেতে পারি?",
-    nepali: "मलाई अर्को कम्बल दिनुहुन्छ?",
-    en: "Can I have another blanket?",
-    hi: "क्या मुझे एक और कंबल मिल सकता है?",
-    bn: "আমি কি আরেকটি কম্বল পেতে পারি?",
-    ne: "मलाई अर्को कम्बल दिनुहुन्छ?"
+    hindi: "आप नकद या UPI द्वारा भुगतान कर सकते हैं।",
+    bengali: "আপনি নগদ অথবা UPI দিয়ে পেমেন্ট করতে পারেন।",
+    nepali: "तपाईं नगद वा UPI मार्फत भुक्तानी गर्न सक्नुहुन्छ।",
+    en: "You can pay by cash or UPI.",
+    hi: "आप नकद या UPI द्वारा भुगतान कर सकते हैं।",
+    bn: "আপনি নগদ অথবা UPI দিয়ে পেমেন্ট করতে পারেন।",
+    ne: "तपाईं नगद वा UPI मार्फत भुक्तानी गर्न सक्नुहुन्छ।"
   },
   {
-    id: "common-02",
-    category: "Common Requests",
-    categoryId: "common",
-    english: "Where is the bathroom?",
-    hindi: "बाथरूम कहाँ है?",
-    bengali: "বাথরুম কোথায়?",
-    nepali: "शौचालय कहाँ छ?",
-    en: "Where is the bathroom?",
-    hi: "बाथरूम कहाँ है?",
-    bn: "বাথরুম কোথায়?",
-    ne: "शौचालय कहाँ छ?"
+    id: "payment-03",
+    category: "Payment",
+    categoryId: "payment",
+    english: "Here is your payment receipt.",
+    hindi: "यह आपकी भुगतान रसीद है।",
+    bengali: "এই নিন আপনার পেমেন্টের রসিদ।",
+    nepali: "यो तपाईंको भुक्तानी रसिद हो।",
+    en: "Here is your payment receipt.",
+    hi: "यह आपकी भुगतान रसीद है।",
+    bn: "এই নিন আপনার পেমেন্টের রসিদ।",
+    ne: "यो तपाईंको भुक्तानी रसिद हो।"
   },
   {
-    id: "common-03",
-    category: "Common Requests",
-    categoryId: "common",
-    english: "I need drinking water.",
-    hindi: "मुझे पीने का पानी चाहिए।",
-    bengali: "আমার খাবার জল দরকার।",
-    nepali: "मलाई पिउने पानी चाहिन्छ।",
-    en: "I need drinking water.",
-    hi: "मुझे पीने का पानी चाहिए।",
-    bn: "আমার খাবার জল দরকার।",
-    ne: "मलाई पिउने पानी चाहिन्छ।"
-  },
-  {
-    id: "common-04",
-    category: "Common Requests",
-    categoryId: "common",
-    english: "Please clean the room.",
-    hindi: "कृपया कमरा साफ कर दीजिए।",
-    bengali: "অনুগ্রহ করে ঘরটি পরিষ্কার করে দিন।",
-    nepali: "कृपया कोठा सफा गरिदिनुहोस्।",
-    en: "Please clean the room.",
-    hi: "कृपया कमरा साफ कर दीजिए।",
-    bn: "অনুগ্রহ করে ঘরটি পরিষ্কার করে দিন।",
-    ne: "कृपया कोठा सफा गरिदिनुहोस्।"
-  }
-];
-
-const ALL_HOMESTAY_PHRASES = [...HOMESTAY_PHRASES, ...COMMON_GUEST_REQUESTS];
-
-module.exports = {
-  PHRASE_CATEGORIES,
-  HOMESTAY_PHRASES,
-  COMMON_GUEST_REQUESTS,
-  ALL_HOMESTAY_PHRASES
-};��্য ধন্যবাদ।",
+    id: "payment-04",
+    category: "Payment",
+    categoryId: "payment",
+    english: "Thank you for staying with us.",
+    hindi: "हमारे साथ ठहरने के लिए धन्यवाद।",
+    bengali: "আমাদের সাথে থাকার জন্য ধন্যবাদ।",
     nepali: "हाम्रो साथ बस्नुभएकोमा धन्यवाद।",
     en: "Thank you for staying with us.",
     hi: "हमारे साथ ठहरने के लिए धन्यवाद।",
@@ -467,9 +428,11 @@ module.exports = {
     hi: "कृपया यहीं रुकिए।",
     bn: "অনুগ্রহ করে এখানে অপেক্ষা করুন।",
     ne: "कृपया यहीँ बस्नुहोस्।"
-  },
+  }
+];
 
-  // --- COMMON GUEST & HOMESTAY FAST LOOKUP PHRASES ---
+// --- COMMON GUEST & HOMESTAY FAST LOOKUP PHRASES ---
+const COMMON_GUEST_REQUESTS = [
   {
     id: "common-01",
     category: "Common Requests",
@@ -502,7 +465,7 @@ module.exports = {
     categoryId: "common",
     english: "I need drinking water.",
     hindi: "मुझे पीने का पानी चाहिए।",
-    bengali: "আমার খাবার जल দরকার।",
+    bengali: "আমার খাবার জল দরকার।",
     nepali: "मलाई पिउने पानी चाहिन्छ।",
     en: "I need drinking water.",
     hi: "मुझे पीने का पानी चाहिए।",
@@ -524,7 +487,13 @@ module.exports = {
   }
 ];
 
+const ALL_HOMESTAY_PHRASES = [...HOMESTAY_PHRASES, ...COMMON_GUEST_REQUESTS];
+
+
+
 module.exports = {
   PHRASE_CATEGORIES,
-  HOMESTAY_PHRASES
+  HOMESTAY_PHRASES,
+  COMMON_GUEST_REQUESTS,
+  ALL_HOMESTAY_PHRASES
 };

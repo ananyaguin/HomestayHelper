@@ -68,14 +68,18 @@ export default function OfflineTranslator({
     }
   }, [externalInputText]);
 
-  // Subscribe to worker status updates
+  // Subscribe to worker status updates and manage worker lifecycle
   useEffect(() => {
+    translationService.acquire();
     const unsubscribe = translationService.onStatusChange((status) => {
       if (status && status.status) {
         setAiStatus(status);
       }
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      translationService.release();
+    };
   }, []);
 
   // Cleanup speech & TTS on unmount
@@ -101,14 +105,22 @@ export default function OfflineTranslator({
 
   /**
    * Core translation function supporting:
-   * 1. Offline phrasebook dictionary (Instant 100% offline match)
-   * 2. TranslationService web worker
-   * 3. Backend endpoint /api/translate
+   * 1. TranslationService web worker (IndicTrans2 / ONNX neural model)
+   * 2. Offline phrasebook dictionary fallback
+   * 3. Backend endpoint fallback
    * 4. Graceful query fallback
    */
   const performTranslation = async (textToTranslate, srcLang, tgtLang) => {
     const query = (textToTranslate || '').trim();
     if (!query) return '';
+
+    // 1. Primary: Local AI Translation Web Worker (IndicTrans2 / ONNX)
+    try {
+      const result = await translationService.translateText(query, srcLang, tgtLang);
+      if (result) return result;
+    } catch (workerErr) {
+      console.warn('[Translator] Worker translation notice, trying fallback:', workerErr.message);
+    }
 
     // Helper to get text in requested language
     const getPhraseText = (p, lang) => {
@@ -127,7 +139,7 @@ export default function OfflineTranslator({
         .replace(/\s+/g, ' ')
         .trim();
 
-    // 1. Instant match in HOMESTAY_PHRASES (<1ms offline phrasebook)
+    // 2. Fallback: Instant match in HOMESTAY_PHRASES (<1ms offline phrasebook)
     const cleanQuery = cleanStr(query);
     const matchedPhrase = HOMESTAY_PHRASES.find((p) => {
       const pSrc = cleanStr(getPhraseText(p, srcLang));
@@ -138,15 +150,7 @@ export default function OfflineTranslator({
       return getPhraseText(matchedPhrase, tgtLang) || matchedPhrase.nepali || matchedPhrase.english;
     }
 
-    // 2. Local AI Translation Worker
-    try {
-      const result = await translationService.translateText(query, srcLang, tgtLang);
-      if (result) return result;
-    } catch (workerErr) {
-      console.warn('Worker translation notice, trying backend/local fallback:', workerErr.message);
-    }
-
-    // 3. Fallback via backend endpoint
+    // 3. Fallback via backend endpoint if available
     try {
       const res = await fetch('/api/translate', {
         method: 'POST',
@@ -178,12 +182,7 @@ export default function OfflineTranslator({
     setExplanationData(null);
 
     try {
-      const transStart = performance.now();
       const translated = await performTranslation(query, activeSourceLang, activeTargetLang);
-      const transDuration = ((performance.now() - transStart) / 1000).toFixed(1);
-      // Performance log: timing only, no user text
-      console.log(`[Translator] Translation completed in ${transDuration}s`);
-
       setOutputText(translated);
       setOriginalTranslatedText(translated);
     } catch (err) {

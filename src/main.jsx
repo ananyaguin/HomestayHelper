@@ -10,6 +10,15 @@ window.addEventListener('beforeinstallprompt', (e) => {
   window.dispatchEvent(new Event('pwa-installable'));
 });
 
+// Ensure any stale service worker is removed in development so it never intercepts HMR or dev requests
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator && !import.meta.env.PROD) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const reg of registrations) {
+      reg.unregister();
+    }
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

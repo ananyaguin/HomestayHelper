@@ -1,6 +1,9 @@
+const path = require('path');
+const dotenv = require('dotenv');
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const morgan = require('morgan');
 const healthRouter = require('./routes/health');
 const authRouter = require('./routes/auth');
@@ -10,8 +13,6 @@ const bookingsRouter = require('./routes/bookings');
 const guestRouter = require('./routes/guest');
 const ledgerRouter = require('./routes/ledger');
 const expensesRouter = require('./routes/expenses');
-
-dotenv.config();
 
 const app = express();
 

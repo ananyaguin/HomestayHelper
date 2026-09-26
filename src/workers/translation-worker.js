@@ -12,16 +12,12 @@ env.allowLocalModels = true;
 env.allowRemoteModels = false;
 env.localModelPath = '/models';
 if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
-  env.backends.onnx.wasm.wasmPaths = {
-    wasm: '/wasm/ort-wasm-simd-threaded.wasm'
-  };
+  env.backends.onnx.wasm.wasmPaths = '/wasm/';
   env.backends.onnx.wasm.numThreads = 1;
 }
 
 // Configure ONNX Runtime Web for local WASM execution with conservative thread count (1-2)
-ort.env.wasm.wasmPaths = {
-  wasm: '/wasm/ort-wasm-simd-threaded.wasm'
-};
+ort.env.wasm.wasmPaths = '/wasm/';
 ort.env.wasm.numThreads = 1;
 
 // Supported language FLORES codes
@@ -124,27 +120,38 @@ async function loadDirectionModel(direction, onProgress = null) {
     try {
       const modelBase = `/models/indictrans2-${direction}`;
 
-      if (onProgress) onProgress({ status: 'LOADING', progress: 10, message: `Loading ${direction} configs & tokenizers...` });
+      if (onProgress) onProgress({ status: 'LOADING', progress: 10, message: `Loading ${direction} model files...` });
 
-      const [srcTokJSON, tgtTokJSON, tokConfig, genConfig, meta] = await Promise.all([
-        fetch(`${modelBase}/tokenizer_src.json`).then(r => {
-          if (!r.ok) throw new Error(`Model not installed (${r.status})`);
-          return r.json();
-        }),
-        fetch(`${modelBase}/tokenizer_tgt.json`).then(r => r.json()),
-        fetch(`${modelBase}/tokenizer_config.json`).then(r => r.json()),
-        fetch(`${modelBase}/generation_config.json`).then(r => r.json()),
-        fetch(`${modelBase}/tokenizer_meta.json`).then(r => r.json())
+      // Fetch all model resources concurrently to eliminate network waterfalls
+      let [
+        [srcTokJSON, tgtTokJSON, tokConfig, genConfig, meta],
+        [encModelBuffer, encDataBuffer],
+        [decModelBuffer, decPastModelBuffer, decSharedBuffer]
+      ] = await Promise.all([
+        Promise.all([
+          fetch(`${modelBase}/tokenizer_src.json`).then(r => {
+            if (!r.ok) throw new Error(`Model not installed (${r.status})`);
+            return r.json();
+          }),
+          fetch(`${modelBase}/tokenizer_tgt.json`).then(r => r.json()),
+          fetch(`${modelBase}/tokenizer_config.json`).then(r => r.json()),
+          fetch(`${modelBase}/generation_config.json`).then(r => r.json()),
+          fetch(`${modelBase}/tokenizer_meta.json`).then(r => r.json())
+        ]),
+        Promise.all([
+          fetch(`${modelBase}/encoder_model.onnx`).then(r => r.arrayBuffer()),
+          fetch(`${modelBase}/encoder_model.onnx.data`).then(r => r.arrayBuffer())
+        ]),
+        Promise.all([
+          fetch(`${modelBase}/decoder_model.onnx`).then(r => r.arrayBuffer()),
+          fetch(`${modelBase}/decoder_with_past_model.onnx`).then(r => r.arrayBuffer()),
+          fetch(`${modelBase}/decoder_shared.onnx.data`).then(r => r.arrayBuffer())
+        ])
       ]);
 
+      if (onProgress) onProgress({ status: 'LOADING', progress: 40, message: `Initializing tokenizers...` });
       const srcTok = new PreTrainedTokenizer(srcTokJSON, tokConfig);
       const tgtTok = new PreTrainedTokenizer(tgtTokJSON, tokConfig);
-
-      if (onProgress) onProgress({ status: 'LOADING', progress: 30, message: `Loading neural encoder weights...` });
-      const [encModelBuffer, encDataBuffer] = await Promise.all([
-        fetch(`${modelBase}/encoder_model.onnx`).then(r => r.arrayBuffer()),
-        fetch(`${modelBase}/encoder_model.onnx.data`).then(r => r.arrayBuffer())
-      ]);
 
       const sessionOptions = {
         executionProviders: ['wasm'],
@@ -154,6 +161,7 @@ async function loadDirectionModel(direction, onProgress = null) {
         executionMode: 'sequential'
       };
 
+      if (onProgress) onProgress({ status: 'LOADING', progress: 60, message: `Initializing neural encoder...` });
       const encSession = await ort.InferenceSession.create(new Uint8Array(encModelBuffer), {
         ...sessionOptions,
         externalData: [
@@ -164,14 +172,8 @@ async function loadDirectionModel(direction, onProgress = null) {
         ]
       });
 
-      if (onProgress) onProgress({ status: 'LOADING', progress: 65, message: `Loading neural decoder weights...` });
-      const [decModelBuffer, decPastModelBuffer, decSharedBuffer] = await Promise.all([
-        fetch(`${modelBase}/decoder_model.onnx`).then(r => r.arrayBuffer()),
-        fetch(`${modelBase}/decoder_with_past_model.onnx`).then(r => r.arrayBuffer()),
-        fetch(`${modelBase}/decoder_shared.onnx.data`).then(r => r.arrayBuffer())
-      ]);
-
-      const decSharedUint8 = new Uint8Array(decSharedBuffer);
+      if (onProgress) onProgress({ status: 'LOADING', progress: 80, message: `Initializing neural decoder...` });
+      let decSharedUint8 = new Uint8Array(decSharedBuffer);
 
       const decSession = await ort.InferenceSession.create(new Uint8Array(decModelBuffer), {
         ...sessionOptions,
@@ -183,7 +185,7 @@ async function loadDirectionModel(direction, onProgress = null) {
         ]
       });
 
-      if (onProgress) onProgress({ status: 'LOADING', progress: 90, message: `Initializing KV-cache decoder...` });
+      if (onProgress) onProgress({ status: 'LOADING', progress: 95, message: `Initializing KV-cache decoder...` });
       const decPastSession = await ort.InferenceSession.create(new Uint8Array(decPastModelBuffer), {
         ...sessionOptions,
         externalData: [
@@ -193,6 +195,14 @@ async function loadDirectionModel(direction, onProgress = null) {
           }
         ]
       });
+
+      // Release large raw buffers from JS memory immediately to avoid RAM pressure
+      encModelBuffer = null;
+      encDataBuffer = null;
+      decModelBuffer = null;
+      decPastModelBuffer = null;
+      decSharedBuffer = null;
+      decSharedUint8 = null;
 
       const numLayers = (decSession.outputNames.length - 1) / 4;
 
@@ -227,6 +237,7 @@ async function loadDirectionModel(direction, onProgress = null) {
   modelLoadPromises.set(direction, loadPromise);
   return loadPromise;
 }
+
 
 /**
  * Execute translation with greedy decoding loop and cancellation check
