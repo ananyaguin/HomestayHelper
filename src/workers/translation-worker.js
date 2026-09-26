@@ -1,6 +1,7 @@
 /**
  * Web Worker for Local IndicTrans2 AI Translation
  * Runs onnxruntime-web and Fast BPE Tokenizers entirely off the main UI thread.
+ * Highly optimized for speed, model caching, and low CPU usage.
  */
 
 import * as ort from 'onnxruntime-web/wasm';
@@ -17,13 +18,13 @@ if (env.backends && env.backends.onnx && env.backends.onnx.wasm) {
   env.backends.onnx.wasm.numThreads = 1;
 }
 
-// Configure ONNX Runtime Web for local WASM execution without remote CDN requests
+// Configure ONNX Runtime Web for local WASM execution with conservative thread count (1-2)
 ort.env.wasm.wasmPaths = {
   wasm: '/wasm/ort-wasm-simd-threaded.wasm'
 };
 ort.env.wasm.numThreads = 1;
 
-// Supported languages
+// Supported language FLORES codes
 const FLORES_CODES = {
   en: 'eng_Latn',
   hi: 'hin_Deva',
@@ -31,10 +32,11 @@ const FLORES_CODES = {
   ne: 'npi_Deva'
 };
 
-// Cached model state
-let currentLoadedDirection = null; // 'en-indic' | 'indic-en' | null
-let currentModel = null;
-let isLoadingModel = false;
+// Cached models map: key is direction ('en-indic' | 'indic-en')
+const loadedModels = new Map();
+const modelLoadPromises = new Map();
+let modelLoaded = false;
+let activeTranslateId = null;
 
 /**
  * Transliterate Devanagari Unicode characters to Bengali Unicode characters
@@ -44,7 +46,6 @@ function devanagariToBengali(text) {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const code = ch.charCodeAt(0);
-    // Devanagari range: 0x0901 to 0x0970 (excluding danda 0x0964 & double danda 0x0965)
     if (code >= 0x0901 && code <= 0x0970 && code !== 0x0964 && code !== 0x0965) {
       res += String.fromCharCode(code + 0x80);
     } else {
@@ -69,7 +70,6 @@ function bengaliToDevanagari(text) {
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const code = ch.charCodeAt(0);
-    // Bengali range: 0x0981 to 0x09F0 (excluding danda)
     if (code >= 0x0981 && code <= 0x09F0 && code !== 0x09E4 && code !== 0x09E5) {
       res += String.fromCharCode(code - 0x80);
     } else {
@@ -79,135 +79,160 @@ function bengaliToDevanagari(text) {
   return res
     .replace(/য/g, 'य')
     .replace(/য়/g, 'य़')
-    .replace(/ড়/g, 'ड़')
-    .replace(/ঢ়/g, 'ढ़')
+    .replace(/ड़/g, 'ड़')
+    .replace(/ढ़/g, 'ढ़')
     .replace(/র/g, 'र');
 }
 
 /**
- * Release currently loaded model from memory
+ * Release currently loaded models from memory
  */
-function releaseCurrentModel() {
-  if (currentModel) {
+function releaseAllModels() {
+  for (const [direction, model] of loadedModels.entries()) {
     try {
-      if (currentModel.encSession) currentModel.encSession.release?.();
-      if (currentModel.decSession) currentModel.decSession.release?.();
-      if (currentModel.decPastSession) currentModel.decPastSession.release?.();
+      if (model.encSession) model.encSession.release?.();
+      if (model.decSession) model.decSession.release?.();
+      if (model.decPastSession) model.decPastSession.release?.();
     } catch (e) {
-      console.warn('Error releasing previous model session:', e);
+      console.warn('Error releasing model session:', e);
     }
-    currentModel = null;
-    currentLoadedDirection = null;
   }
+  loadedModels.clear();
+  modelLoadPromises.clear();
+  modelLoaded = false;
 }
 
 /**
  * Load direction model bundle (en-indic or indic-en)
+ * Loads ONCE and caches the model/session for all subsequent translations.
+ * Language direction changes reuse already-loaded models without reloading.
  */
 async function loadDirectionModel(direction, onProgress = null) {
-  if (currentLoadedDirection === direction && currentModel) {
-    return currentModel;
+  // Fast path: reuse already loaded model session
+  if (loadedModels.has(direction)) {
+    return loadedModels.get(direction);
   }
 
-  // Release previous model to conserve memory on low-end devices
-  releaseCurrentModel();
-  isLoadingModel = true;
-
-  try {
-    const modelBase = `/models/indictrans2-${direction}`;
-
-    if (onProgress) onProgress({ status: 'LOADING', progress: 10, message: `Loading ${direction} configs & tokenizers...` });
-
-    const [srcTokJSON, tgtTokJSON, tokConfig, genConfig, meta] = await Promise.all([
-      fetch(`${modelBase}/tokenizer_src.json`).then(r => {
-        if (!r.ok) throw new Error(`Model not installed (${r.status})`);
-        return r.json();
-      }),
-      fetch(`${modelBase}/tokenizer_tgt.json`).then(r => r.json()),
-      fetch(`${modelBase}/tokenizer_config.json`).then(r => r.json()),
-      fetch(`${modelBase}/generation_config.json`).then(r => r.json()),
-      fetch(`${modelBase}/tokenizer_meta.json`).then(r => r.json())
-    ]);
-
-    const srcTok = new PreTrainedTokenizer(srcTokJSON, tokConfig);
-    const tgtTok = new PreTrainedTokenizer(tgtTokJSON, tokConfig);
-
-    if (onProgress) onProgress({ status: 'LOADING', progress: 30, message: `Loading neural encoder weights...` });
-    const [encModelBuffer, encDataBuffer] = await Promise.all([
-      fetch(`${modelBase}/encoder_model.onnx`).then(r => r.arrayBuffer()),
-      fetch(`${modelBase}/encoder_model.onnx.data`).then(r => r.arrayBuffer())
-    ]);
-
-    const encSession = await ort.InferenceSession.create(new Uint8Array(encModelBuffer), {
-      executionProviders: ['wasm'],
-      externalData: [
-        {
-          path: 'encoder_model.onnx.data',
-          data: new Uint8Array(encDataBuffer)
-        }
-      ]
-    });
-
-    if (onProgress) onProgress({ status: 'LOADING', progress: 65, message: `Loading neural decoder weights...` });
-    const [decModelBuffer, decPastModelBuffer, decSharedBuffer] = await Promise.all([
-      fetch(`${modelBase}/decoder_model.onnx`).then(r => r.arrayBuffer()),
-      fetch(`${modelBase}/decoder_with_past_model.onnx`).then(r => r.arrayBuffer()),
-      fetch(`${modelBase}/decoder_shared.onnx.data`).then(r => r.arrayBuffer())
-    ]);
-
-    const decSharedUint8 = new Uint8Array(decSharedBuffer);
-
-    const decSession = await ort.InferenceSession.create(new Uint8Array(decModelBuffer), {
-      executionProviders: ['wasm'],
-      externalData: [
-        {
-          path: 'decoder_shared.onnx.data',
-          data: decSharedUint8
-        }
-      ]
-    });
-
-    if (onProgress) onProgress({ status: 'LOADING', progress: 90, message: `Initializing KV-cache decoder...` });
-    const decPastSession = await ort.InferenceSession.create(new Uint8Array(decPastModelBuffer), {
-      executionProviders: ['wasm'],
-      externalData: [
-        {
-          path: 'decoder_shared.onnx.data',
-          data: decSharedUint8
-        }
-      ]
-    });
-
-    const numLayers = (decSession.outputNames.length - 1) / 4;
-
-    currentModel = {
-      direction,
-      srcTok,
-      tgtTok,
-      genConfig,
-      meta,
-      encSession,
-      decSession,
-      decPastSession,
-      numLayers
-    };
-    currentLoadedDirection = direction;
-    isLoadingModel = false;
-
-    if (onProgress) onProgress({ status: 'READY', progress: 100, message: `Local AI Model Ready (${direction})` });
-    return currentModel;
-  } catch (err) {
-    isLoadingModel = false;
-    currentModel = null;
-    currentLoadedDirection = null;
-    throw err;
+  // Deduplicate ongoing load
+  if (modelLoadPromises.has(direction)) {
+    return modelLoadPromises.get(direction);
   }
+
+  const loadStartTime = performance.now();
+
+  const loadPromise = (async () => {
+    try {
+      const modelBase = `/models/indictrans2-${direction}`;
+
+      if (onProgress) onProgress({ status: 'LOADING', progress: 10, message: `Loading ${direction} configs & tokenizers...` });
+
+      const [srcTokJSON, tgtTokJSON, tokConfig, genConfig, meta] = await Promise.all([
+        fetch(`${modelBase}/tokenizer_src.json`).then(r => {
+          if (!r.ok) throw new Error(`Model not installed (${r.status})`);
+          return r.json();
+        }),
+        fetch(`${modelBase}/tokenizer_tgt.json`).then(r => r.json()),
+        fetch(`${modelBase}/tokenizer_config.json`).then(r => r.json()),
+        fetch(`${modelBase}/generation_config.json`).then(r => r.json()),
+        fetch(`${modelBase}/tokenizer_meta.json`).then(r => r.json())
+      ]);
+
+      const srcTok = new PreTrainedTokenizer(srcTokJSON, tokConfig);
+      const tgtTok = new PreTrainedTokenizer(tgtTokJSON, tokConfig);
+
+      if (onProgress) onProgress({ status: 'LOADING', progress: 30, message: `Loading neural encoder weights...` });
+      const [encModelBuffer, encDataBuffer] = await Promise.all([
+        fetch(`${modelBase}/encoder_model.onnx`).then(r => r.arrayBuffer()),
+        fetch(`${modelBase}/encoder_model.onnx.data`).then(r => r.arrayBuffer())
+      ]);
+
+      const sessionOptions = {
+        executionProviders: ['wasm'],
+        graphOptimizationLevel: 'all',
+        enableCpuMemArena: true,
+        enableMemPattern: true,
+        executionMode: 'sequential'
+      };
+
+      const encSession = await ort.InferenceSession.create(new Uint8Array(encModelBuffer), {
+        ...sessionOptions,
+        externalData: [
+          {
+            path: 'encoder_model.onnx.data',
+            data: new Uint8Array(encDataBuffer)
+          }
+        ]
+      });
+
+      if (onProgress) onProgress({ status: 'LOADING', progress: 65, message: `Loading neural decoder weights...` });
+      const [decModelBuffer, decPastModelBuffer, decSharedBuffer] = await Promise.all([
+        fetch(`${modelBase}/decoder_model.onnx`).then(r => r.arrayBuffer()),
+        fetch(`${modelBase}/decoder_with_past_model.onnx`).then(r => r.arrayBuffer()),
+        fetch(`${modelBase}/decoder_shared.onnx.data`).then(r => r.arrayBuffer())
+      ]);
+
+      const decSharedUint8 = new Uint8Array(decSharedBuffer);
+
+      const decSession = await ort.InferenceSession.create(new Uint8Array(decModelBuffer), {
+        ...sessionOptions,
+        externalData: [
+          {
+            path: 'decoder_shared.onnx.data',
+            data: decSharedUint8
+          }
+        ]
+      });
+
+      if (onProgress) onProgress({ status: 'LOADING', progress: 90, message: `Initializing KV-cache decoder...` });
+      const decPastSession = await ort.InferenceSession.create(new Uint8Array(decPastModelBuffer), {
+        ...sessionOptions,
+        externalData: [
+          {
+            path: 'decoder_shared.onnx.data',
+            data: decSharedUint8
+          }
+        ]
+      });
+
+      const numLayers = (decSession.outputNames.length - 1) / 4;
+
+      const model = {
+        direction,
+        srcTok,
+        tgtTok,
+        genConfig,
+        meta,
+        encSession,
+        decSession,
+        decPastSession,
+        numLayers
+      };
+
+      loadedModels.set(direction, model);
+      modelLoaded = true;
+      modelLoadPromises.delete(direction);
+
+      const loadDuration = ((performance.now() - loadStartTime) / 1000).toFixed(1);
+      // Performance log: timing only, no user text
+      console.log(`[Translator] Model loaded in ${loadDuration}s`);
+
+      if (onProgress) onProgress({ status: 'READY', progress: 100, message: `Local AI Model Ready (${direction})` });
+      return model;
+    } catch (err) {
+      modelLoadPromises.delete(direction);
+      throw err;
+    }
+  })();
+
+  modelLoadPromises.set(direction, loadPromise);
+  return loadPromise;
 }
 
 /**
- * Execute translation with greedy decoding loop
+ * Execute translation with greedy decoding loop and cancellation check
  */
-async function runTranslation(text, srcLangCode, tgtLangCode, model) {
+async function runTranslation(text, srcLangCode, tgtLangCode, model, requestId) {
+  const transStartTime = performance.now();
   const { srcTok, tgtTok, genConfig, meta, encSession, decSession, decPastSession, numLayers } = model;
 
   let processedInput = text.trim();
@@ -243,9 +268,14 @@ async function runTranslation(text, srcLangCode, tgtLangCode, model) {
   let pastKeyValues = {};
   const generatedIds = [Number(decoderStartId)];
 
-  // Greedy Decoding Loop
-  const maxTokens = 128;
+  // Greedy Decoding Loop capped at 64 tokens for short conversational homestay sentences
+  const maxTokens = 64;
   for (let step = 0; step < maxTokens; step++) {
+    // Check if a newer request arrived
+    if (activeTranslateId !== requestId) {
+      throw new Error('Translation aborted: superseded by newer request');
+    }
+
     let decOut;
     if (step === 0) {
       decOut = await decSession.run({
@@ -301,6 +331,10 @@ async function runTranslation(text, srcLangCode, tgtLangCode, model) {
     decodedText = devanagariToBengali(decodedText);
   }
 
+  const transDuration = ((performance.now() - transStartTime) / 1000).toFixed(1);
+  // Performance log: timing only, no user text
+  console.log(`[Translator] Translation completed in ${transDuration}s`);
+
   return decodedText.trim();
 }
 
@@ -315,14 +349,15 @@ self.onmessage = async (event) => {
       self.postMessage({
         id,
         type: 'status',
-        status: currentModel ? 'READY' : (isLoadingModel ? 'LOADING' : 'UNAVAILABLE'),
-        message: currentModel ? `AI Ready (${currentLoadedDirection})` : 'Local AI translation ready to load on demand.'
+        status: modelLoaded ? 'READY' : 'UNAVAILABLE',
+        message: modelLoaded ? 'AI Offline Ready (Cached)' : 'Local AI translation ready.'
       });
       break;
     }
 
     case 'TRANSLATE':
     case 'translate': {
+      activeTranslateId = id;
       const srcFlores = FLORES_CODES[sourceLanguage] || sourceLanguage;
       const tgtFlores = FLORES_CODES[targetLanguage] || targetLanguage;
 
@@ -363,12 +398,15 @@ self.onmessage = async (event) => {
       }
 
       try {
-        self.postMessage({
-          id,
-          type: 'status',
-          status: 'LOADING',
-          message: `Preparing local ${direction} neural model...`
-        });
+        const isAlreadyLoaded = loadedModels.has(direction);
+        if (!isAlreadyLoaded) {
+          self.postMessage({
+            id,
+            type: 'status',
+            status: 'LOADING',
+            message: `Initializing local ${direction} model...`
+          });
+        }
 
         const model = await loadDirectionModel(direction, (progressState) => {
           self.postMessage({
@@ -378,14 +416,22 @@ self.onmessage = async (event) => {
           });
         });
 
+        if (activeTranslateId !== id) {
+          return; // Superseded
+        }
+
         self.postMessage({
           id,
           type: 'status',
           status: 'TRANSLATING',
-          message: 'Translating with local neural model...'
+          message: 'Translating...'
         });
 
-        const translatedText = await runTranslation(text, srcFlores, tgtFlores, model);
+        const translatedText = await runTranslation(text, srcFlores, tgtFlores, model, id);
+
+        if (activeTranslateId !== id) {
+          return; // Superseded
+        }
 
         self.postMessage({
           id,
@@ -394,6 +440,9 @@ self.onmessage = async (event) => {
           translatedText
         });
       } catch (err) {
+        if (activeTranslateId !== id) {
+          return; // Ignore errors for superseded requests
+        }
         console.error('Translation error in worker:', err);
         const errMsg = err.message?.includes('Model not installed') || err.message?.includes('404')
           ? 'Local translation model is not installed.'
@@ -409,14 +458,22 @@ self.onmessage = async (event) => {
       break;
     }
 
+    case 'CANCEL':
+    case 'cancel':
+    case 'ABORT':
+    case 'abort': {
+      activeTranslateId = null;
+      break;
+    }
+
     case 'RELEASE':
     case 'release': {
-      releaseCurrentModel();
+      releaseAllModels();
       self.postMessage({
         id,
         type: 'status',
         status: 'UNAVAILABLE',
-        message: 'Model unloaded to free memory.'
+        message: 'Models unloaded.'
       });
       break;
     }

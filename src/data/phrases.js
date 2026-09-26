@@ -3,43 +3,50 @@ export const PHRASE_CATEGORIES = [
   {
     id: "welcome",
     name: "Welcome",
-    subtitle: "Guest greetings",
+    subtitle: "Greetings & arrival",
+    icon: "👋",
     color: "emerald"
   },
   {
     id: "food-tea",
     name: "Food & Tea",
-    subtitle: "Tea, meals & dining",
+    subtitle: "Meals & refreshments",
+    icon: "☕",
     color: "amber"
   },
   {
     id: "room",
     name: "Room",
-    subtitle: "Stay comfort & supplies",
+    subtitle: "Room & comfort",
+    icon: "🛏️",
     color: "sky"
   },
   {
     id: "directions",
     name: "Directions",
-    subtitle: "Wayfinding & transport",
+    subtitle: "Places & transport",
+    icon: "📍",
     color: "teal"
   },
   {
     id: "payment",
     name: "Payment",
-    subtitle: "Rates, UPI & billing",
+    subtitle: "Booking & payment",
+    icon: "₹",
     color: "emerald"
   },
   {
     id: "local-experience",
     name: "Local Experience",
-    subtitle: "Sightseeing & culture",
+    subtitle: "Explore the area",
+    icon: "🌿",
     color: "indigo"
   },
   {
     id: "emergency",
     name: "Emergency",
-    subtitle: "Medical & assistance",
+    subtitle: "Urgent assistance",
+    icon: "🆘",
     color: "rose"
   }
 ];
@@ -63,19 +70,6 @@ export const HOMESTAY_PHRASES = [
     id: "welcome-02",
     category: "Welcome",
     categoryId: "welcome",
-    english: "Please make yourself comfortable.",
-    hindi: "कृपया आराम से बैठिए।",
-    bengali: "অনুগ্রহ করে আরাম করে বসুন।",
-    nepali: "कृपया आराम गर्नुहोस्।",
-    en: "Please make yourself comfortable.",
-    hi: "कृपया आराम से बैठिए।",
-    bn: "অনুগ্রহ করে আরাম করে বসুন।",
-    ne: "कृपया आराम गर्नुहोस्।"
-  },
-  {
-    id: "welcome-03",
-    category: "Welcome",
-    categoryId: "welcome",
     english: "How was your journey?",
     hindi: "आपकी यात्रा कैसी रही?",
     bengali: "আপনার যাত্রা কেমন ছিল?",
@@ -86,17 +80,30 @@ export const HOMESTAY_PHRASES = [
     ne: "तपाईंको यात्रा कस्तो रह्यो?"
   },
   {
+    id: "welcome-03",
+    category: "Welcome",
+    categoryId: "welcome",
+    english: "Please make yourself comfortable.",
+    hindi: "कृपया आराम से बैठिए।",
+    bengali: "অনুগ্রহ করে আরাম করে বসুন।",
+    nepali: "कृपया आराम गर्नुहोस्।",
+    en: "Please make yourself comfortable.",
+    hi: "कृपया आराम से बैठिए।",
+    bn: "অনুগ্রহ করে আরাম করে বসুন।",
+    ne: "कृपया आराम गर्नुहोस्।"
+  },
+  {
     id: "welcome-04",
     category: "Welcome",
     categoryId: "welcome",
-    english: "Here is your room key. Let me know if you need anything.",
-    hindi: "यह आपके कमरे की चाबी है। कुछ भी चाहिए तो बताइएगा।",
-    bengali: "এই নিন আপনার ঘরের চাবি। কিছু লাগলে জানাবেন।",
-    nepali: "यो तपाईंको कोठाको चाबी हो। केही चाहिएमा भन्नुहोस्।",
-    en: "Here is your room key. Let me know if you need anything.",
-    hi: "यह आपके कमरे की चाबी है। कुछ भी चाहिए तो बताइएगा।",
-    bn: "এই নিন আপনার ঘরের চাবি। কিছু লাগলে জানাবেন।",
-    ne: "यो तपाईंको कोठाको चाबी हो। केही चाहिएमा भन्नुहोस्।"
+    english: "Can I help you with your luggage?",
+    hindi: "क्या मैं आपके सामान में मदद कर सकता हूँ?",
+    bengali: "আমি কি আপনার মালপত্র বহনে সাহায্য করতে পারি?",
+    nepali: "के म तपाईंको सामान बोक्न मद्दत गरूँ?",
+    en: "Can I help you with your luggage?",
+    hi: "क्या मैं आपके सामान में मदद कर सकता हूँ?",
+    bn: "আমি কি আপনার মালপত্র বহনে সাহায্য করতে পারি?",
+    ne: "के म तपाईंको सामान बोक्न मद्दत गरूँ?"
   },
 
   // --- FOOD & TEA ---
@@ -130,27 +137,27 @@ export const HOMESTAY_PHRASES = [
     id: "food-tea-03",
     category: "Food & Tea",
     categoryId: "food-tea",
-    english: "Dinner will be ready at 8 PM.",
-    hindi: "रात का खाना 8 बजे तैयार हो जाएगा।",
-    bengali: "রাতের খাবার রাত ৮ টায় তৈরি হয়ে যাবে।",
-    nepali: "रातीको खाना बेलुका ८ बजे तयार हुनेछ।",
-    en: "Dinner will be ready at 8 PM.",
-    hi: "रात का खाना 8 बजे तैयार हो जाएगा।",
-    bn: "রাতের খাবার রাত ৮ টায় তৈরি হয়ে যাবে।",
-    ne: "रातीको खाना बेलुका ८ बजे तयार हुनेछ।"
+    english: "Would you like some dinner?",
+    hindi: "क्या आप रात का खाना लेना चाहेंगे?",
+    bengali: "আপনি কি রাতের খাবার খাবেন?",
+    nepali: "के तपाईं रातीको खाना खान चाहनुहुन्छ?",
+    en: "Would you like some dinner?",
+    hi: "क्या आप रात का खाना लेना चाहेंगे?",
+    bn: "আপনি কি রাতের খাবার খাবেন?",
+    ne: "के तपाईं रातीको खाना खान चाहनुहुन्छ?"
   },
   {
     id: "food-tea-04",
     category: "Food & Tea",
     categoryId: "food-tea",
-    english: "Do you prefer Vegetarian or Non-Vegetarian food?",
-    hindi: "क्या आप शाकाहारी या मांसाहारी खाना पसंद करते हैं?",
-    bengali: "আপনি কি নিরামিষ নাকি আমিষ খাবার পছন্দ করেন?",
-    nepali: "तपाईं शाकाहारी कि मांसाहारी खाना मन पराउनुहुन्छ?",
-    en: "Do you prefer Vegetarian or Non-Vegetarian food?",
-    hi: "क्या आप शाकाहारी या मांसाहारी खाना पसंद करते हैं?",
-    bn: "আপনি কি নিরামিষ নাকি আমিষ খাবার পছন্দ করেন?",
-    ne: "तपाईं शाकाहारी कि मांसाहारी खाना मन पराउनुहुन्छ?"
+    english: "Is the food okay?",
+    hindi: "क्या खाना ठीक है?",
+    bengali: "খাবার কি ঠিক আছে?",
+    nepali: "खाना ठीक छ?",
+    en: "Is the food okay?",
+    hi: "क्या खाना ठीक है?",
+    bn: "খাবার কি ठीक আছে?",
+    ne: "खाना ठीक छ?"
   },
 
   // --- ROOM ---
@@ -174,11 +181,11 @@ export const HOMESTAY_PHRASES = [
     english: "Would you like another blanket?",
     hindi: "क्या आपको एक और कंबल चाहिए?",
     bengali: "আপনার কি আরেকটি কম্বল লাগবে?",
-    nepali: "के तपाईंलाई अर्को कम्बल चाहिन्छ?",
+    nepali: "मलाई अर्को कम्बल दिनुहुन्छ?",
     en: "Would you like another blanket?",
     hi: "क्या आपको एक और कंबल चाहिए?",
     bn: "আপনার কি আরেকটি কম্বল লাগবে?",
-    ne: "के तपाईंलाई अर्को कम्बल चाहिन्छ?"
+    ne: "मलाई अर्को कम्बल दिनुहुन्छ?"
   },
   {
     id: "room-03",
@@ -190,21 +197,21 @@ export const HOMESTAY_PHRASES = [
     nepali: "के तपाईंलाई कोठाको लागि केही चाहिन्छ?",
     en: "Do you need anything for your room?",
     hi: "क्या आपको अपने कमरे के लिए किसी चीज की जरूरत है?",
-    bn: "ঘরের জন্য কি আপনার कुछ লাগবে?",
+    bn: "ঘরের জন্য কি আপনার কিছু লাগবে?",
     ne: "के तपाईंलाई कोठाको लागि केही चाहिन्छ?"
   },
   {
     id: "room-04",
     category: "Room",
     categoryId: "room",
-    english: "Hot water is available in the morning.",
-    hindi: "सुबह गर्म पानी उपलब्ध रहेगा।",
-    bengali: "সকালে গরম জল পাওয়া যাবে।",
-    nepali: "बिहान तातो पानी उपलब्ध हुनेछ।",
-    en: "Hot water is available in the morning.",
-    hi: "सुबह गर्म पानी उपलब्ध रहेगा।",
-    bn: "সকালে গরম জল পাওয়া যাবে।",
-    ne: "बिहान तातो पानी उपलब्ध हुनेछ।"
+    english: "Would you like room cleaning?",
+    hindi: "क्या आप कमरे की सफाई करवाना चाहते हैं?",
+    bengali: "আপনি কি ঘর পরিষ্কার করাতে চান?",
+    nepali: "के तपाईं कोठा सफा गराउन चाहनुहुन्छ?",
+    en: "Would you like room cleaning?",
+    hi: "क्या आप कमरे की सफाई करवाना चाहते हैं?",
+    bn: "আপনি কি ঘর পরিষ্কার করাতে চান?",
+    ne: "के तपाईं कोठा सफा गराउन चाहनुहुन्छ?"
   },
 
   // --- DIRECTIONS ---
@@ -251,14 +258,14 @@ export const HOMESTAY_PHRASES = [
     id: "directions-04",
     category: "Directions",
     categoryId: "directions",
-    english: "The market is a 10-minute walk from here.",
-    hindi: "बाजार यहाँ से 10 मिनट की पैदल दूरी पर है।",
-    bengali: "বাজার এখান থেকে ১০ মিনিটের হাঁটা পথ।",
-    nepali: "बजार यहाँबाट १० मिनेटको पैदल दूरीमा छ।",
-    en: "The market is a 10-minute walk from here.",
-    hi: "बाजार यहाँ से 10 मिनट की पैदल दूरी पर है।",
-    bn: "বাজার এখান থেকে ১০ মিনিটের হাঁটা পথ।",
-    ne: "बजार यहाँबाट १० मिनेटको पैदल दूरीमा छ।"
+    english: "Would you like help with directions?",
+    hindi: "क्या आपको रास्ते के लिए मदद चाहिए?",
+    bengali: "আপনার কি দিকনির্দেশের জন্য সাহায্য লাগবে?",
+    nepali: "के तपाईंलाई बाटो पत्ता लगाउन मद्दत चाहिन्छ?",
+    en: "Would you like help with directions?",
+    hi: "क्या आपको रास्ते के लिए मदद चाहिए?",
+    bn: "আপনার কি দিকনির্দেশের জন্য সাহায্য লাগবে?",
+    ne: "के तपाईंलाई बाटो पत्ता लगाउन मद्दत चाहिन्छ?"
   },
 
   // --- PAYMENT ---
@@ -305,14 +312,14 @@ export const HOMESTAY_PHRASES = [
     id: "payment-04",
     category: "Payment",
     categoryId: "payment",
-    english: "Payment has been received, thank you.",
-    hindi: "भुगतान प्राप्त हो गया है, धन्यवाद।",
-    bengali: "পেমেন্ট পাওয়া গেছে, ধন্যবাদ।",
-    nepali: "भुक्तानी प्राप्त भयो, धन्यवाद।",
-    en: "Payment has been received, thank you.",
-    hi: "भुगतान प्राप्त हो गया है, धन्यवाद।",
-    bn: "পেমেন্ট পাওয়া গেছে, धन्यवाद।",
-    ne: "भुक्तानी प्राप्त भयो, धन्यवाद।"
+    english: "Thank you for staying with us.",
+    hindi: "हमारे साथ ठहरने के लिए धन्यवाद।",
+    bengali: "আমাদের সাথে থাকার জন্য ধন্যবাদ।",
+    nepali: "हाम्रो साथ बस्नुभएकोमा धन्यवाद।",
+    en: "Thank you for staying with us.",
+    hi: "हमारे साथ ठहरने के लिए धन्यवाद।",
+    bn: "আমাদের সাথে থাকার জন্য ধন্যবাদ।",
+    ne: "हाम्रो साथ बस्नुभएकोमा धन्यवाद।"
   },
 
   // --- LOCAL EXPERIENCE ---
@@ -346,27 +353,27 @@ export const HOMESTAY_PHRASES = [
     id: "local-03",
     category: "Local Experience",
     categoryId: "local-experience",
-    english: "We can help you arrange local transport.",
-    hindi: "हम स्थानीय वाहन की व्यवस्था करने में आपकी मदद कर सकते हैं।",
-    bengali: "আমরা স্থানীয় গাড়ির ব্যবস্থা করতে সাহায্য করতে পারি।",
-    nepali: "हामी स्थानीय गाडीको व्यवस्था मिलाउन मद्दत गर्न सक्छौं।",
-    en: "We can help you arrange local transport.",
-    hi: "हम स्थानीय वाहन की व्यवस्था करने में आपकी मदद कर सकते हैं।",
-    bn: "আমরা স্থানীয় গাড়ির ব্যবস্থা করতে সাহায্য করতে পারি।",
-    ne: "हामी स्थानीय गाडीको व्यवस्था मिलाउन मद्दत गर्न सक्छौं।"
+    english: "Would you like to explore the village?",
+    hindi: "क्या आप गाँव घूमना चाहेंगे?",
+    bengali: "আপনি কি গ্রাম ঘুরে দেখতে চান?",
+    nepali: "के तपाईं गाउँ घुम्न चाहनुहुन्छ?",
+    en: "Would you like to explore the village?",
+    hi: "क्या आप गाँव घूमना चाहेंगे?",
+    bn: "আপনি কি গ্রাম ঘুরে দেখতে চান?",
+    ne: "के तपाईं गाउँ घुम्न चाहनुहुन्छ?"
   },
   {
     id: "local-04",
     category: "Local Experience",
     categoryId: "local-experience",
-    english: "You can see Mount Kanchenjunga from the terrace on clear mornings.",
-    hindi: "साफ सुबह में आप छत से कंचनजंगा पर्वत देख सकते हैं।",
-    bengali: "পরিষ্কার সকালে ছাদ থেকে কাঞ্চনজঙ্ঘা পর্বত দেখতে পাবেন।",
-    nepali: "सफा बिहानमा तपाईंले छतबाटै कञ्चनजङ्घा हिमाल देख्न सक्नुहुन्छ।",
-    en: "You can see Mount Kanchenjunga from the terrace on clear mornings.",
-    hi: "साफ सुबह में आप छत से कंचनजंगा पर्वत देख सकते हैं।",
-    bn: "পরিষ্কার সকালে ছাদ থেকে কাঞ্চনজঙ্ঘা পর্বত দেখতে পাবেন।",
-    ne: "सफा बिहानमा तपाईंले छतबाटै कञ्चनजङ्घा हिमाल देख्न सक्नुहुन्छ।"
+    english: "We can help arrange local transport.",
+    hindi: "हम स्थानीय वाहन की व्यवस्था करने में आपकी मदद कर सकते हैं।",
+    bengali: "আমরা স্থানীয় গাড়ির ব্যবস্থা করতে সাহায্য করতে পারি।",
+    nepali: "हामी स्थानीय गाडीको व्यवस्था मिलाउन मद्दत गर्न सक्छौं।",
+    en: "We can help arrange local transport.",
+    hi: "हम स्थानीय वाहन की व्यवस्था करने में आपकी मदद कर सकते हैं।",
+    bn: "আমরা স্থানীয় গাড়ির ব্যবস্থা করতে সাহায্য করতে পারি।",
+    ne: "हामी स्थानीय गाडीको व्यवस्था मिलाउन मद्दत गर्न सक्छौं।"
   },
 
   // --- EMERGENCY ---
@@ -413,15 +420,72 @@ export const HOMESTAY_PHRASES = [
     id: "emergency-04",
     category: "Emergency",
     categoryId: "emergency",
-    english: "A first-aid box is available with us.",
-    hindi: "हमारे पास प्राथमिक चिकित्सा (फर्स्ट-एड) किट उपलब्ध है।",
-    bengali: "আমাদের কাছে ফার্স্ট এইড বক্স আছে।",
-    nepali: "हामीसँग प्राथमिक उपचार किट उपलब्ध छ।",
-    en: "A first-aid box is available with us.",
-    hi: "हमारे पास प्राथमिक चिकित्सा (फर्स्ट-एड) किट उपलब्ध है।",
-    bn: "আমাদের কাছে ফার্স্ট এইড বক্স আছে।",
-    ne: "हामीसँग प्राथमिक उपचार किट उपलब्ध छ।"
+    english: "Please stay here.",
+    hindi: "कृपया यहीं रुकिए।",
+    bengali: "অনুগ্রহ করে এখানে অপেক্ষা করুন।",
+    nepali: "कृपया यहीँ बस्नुहोस्।",
+    en: "Please stay here.",
+    hi: "कृपया यहीं रुकिए।",
+    bn: "অনুগ্রহ করে এখানে অপেক্ষা করুন।",
+    ne: "कृपया यहीँ बस्नुहोस्।"
   }
 ];
 
+// --- COMMON GUEST & HOMESTAY FAST LOOKUP PHRASES ---
+export const COMMON_GUEST_REQUESTS = [
+  {
+    id: "common-01",
+    category: "Common Requests",
+    categoryId: "common",
+    english: "Can I have another blanket?",
+    hindi: "क्या मुझे एक और कंबल मिल सकता है?",
+    bengali: "আমি কি আরেকটি কম্বল পেতে পারি?",
+    nepali: "मलाई अर्को कम्बल दिनुहुन्छ?",
+    en: "Can I have another blanket?",
+    hi: "क्या मुझे एक और कंबल मिल सकता है?",
+    bn: "আমি কি আরেকটি কম্বল পেতে পারি?",
+    ne: "मलाई अर्को कम्बल दिनुहुन्छ?"
+  },
+  {
+    id: "common-02",
+    category: "Common Requests",
+    categoryId: "common",
+    english: "Where is the bathroom?",
+    hindi: "बाथरूम कहाँ है?",
+    bengali: "বাথরুম কোথায়?",
+    nepali: "शौचालय कहाँ छ?",
+    en: "Where is the bathroom?",
+    hi: "बाथरूम कहाँ है?",
+    bn: "বাথরুম কোথায়?",
+    ne: "शौचालय कहाँ छ?"
+  },
+  {
+    id: "common-03",
+    category: "Common Requests",
+    categoryId: "common",
+    english: "I need drinking water.",
+    hindi: "मुझे पीने का पानी चाहिए।",
+    bengali: "আমার খাবার জল দরকার।",
+    nepali: "मलाई पिउने पानी चाहिन्छ।",
+    en: "I need drinking water.",
+    hi: "मुझे पीने का पानी चाहिए।",
+    bn: "আমার খাবার জল দরকার।",
+    ne: "मलाई पिउने पानी चाहिन्छ।"
+  },
+  {
+    id: "common-04",
+    category: "Common Requests",
+    categoryId: "common",
+    english: "Please clean the room.",
+    hindi: "कृपया कमरा साफ कर दीजिए।",
+    bengali: "অনুগ্রহ করে ঘরটি পরিষ্কার করে দিন।",
+    nepali: "कृपया कोठा सफा गरिदिनुहोस्।",
+    en: "Please clean the room.",
+    hi: "कृपया कमरा साफ कर दीजिए।",
+    bn: "অনুগ্রহ করে ঘরটি পরিষ্কার করে দিন।",
+    ne: "कृपया कोठा सफा गरिदिनुहोस्।"
+  }
+];
+
+export const ALL_HOMESTAY_PHRASES = [...HOMESTAY_PHRASES, ...COMMON_GUEST_REQUESTS];
 export default HOMESTAY_PHRASES;

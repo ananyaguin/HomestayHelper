@@ -3,6 +3,7 @@ class AudioTTS {
   constructor() {
     this.synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
     this.voices = [];
+    this.currentUtteranceId = 0;
     if (this.synth) {
       this._loadVoices();
       if (typeof window !== 'undefined' && window.speechSynthesis.onvoiceschanged !== undefined) {
@@ -13,26 +14,31 @@ class AudioTTS {
 
   _loadVoices() {
     if (this.synth) {
-      this.voices = this.synth.getVoices();
+      this.voices = this.synth.getVoices() || [];
     }
   }
 
   speak(text, lang = 'en', onStart = null, onEnd = null) {
     if (!this.synth) {
-      alert("Speech Synthesis is not supported in this browser. Please read the card aloud.");
       if (onEnd) onEnd();
       return;
     }
 
-    if (!text || !text.trim()) {
+    const cleanText = (text || '').trim();
+    if (!cleanText) {
       if (onEnd) onEnd();
       return;
     }
 
-    // Cancel any ongoing speech
-    this.synth.cancel();
+    // Cancel any ongoing speech immediately before starting new utterance
+    try {
+      this.synth.cancel();
+    } catch (e) {
+      console.warn('[TTS] Synth cancel notice:', e);
+    }
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utteranceId = ++this.currentUtteranceId;
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 0.9; // Slightly slower for clarity
     utterance.pitch = 1.0;
 
@@ -65,18 +71,41 @@ class AudioTTS {
       utterance.voice = matchedVoice;
     }
 
-    if (onStart) utterance.onstart = onStart;
-    if (onEnd) utterance.onend = onEnd;
-    utterance.onerror = (err) => {
-      console.warn("[TTS] Speech synthesis notice/error:", err);
-      if (onEnd) onEnd();
+    utterance.onstart = () => {
+      if (this.currentUtteranceId === utteranceId && onStart) {
+        onStart();
+      }
     };
 
-    this.synth.speak(utterance);
+    utterance.onend = () => {
+      if (this.currentUtteranceId === utteranceId && onEnd) {
+        onEnd();
+      }
+    };
+
+    utterance.onerror = (err) => {
+      if (this.currentUtteranceId === utteranceId && onEnd) {
+        onEnd();
+      }
+    };
+
+    try {
+      this.synth.speak(utterance);
+    } catch (err) {
+      console.warn('[TTS] Speak error:', err);
+      if (onEnd) onEnd();
+    }
   }
 
   stop() {
-    if (this.synth) this.synth.cancel();
+    this.currentUtteranceId++;
+    if (this.synth) {
+      try {
+        this.synth.cancel();
+      } catch (e) {
+        // Ignore
+      }
+    }
   }
 }
 

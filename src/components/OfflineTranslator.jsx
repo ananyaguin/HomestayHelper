@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { translationService } from '../services/translation';
 import { speechRecognitionService } from '../services/speechRecognition';
 import { ttsService } from '../services/tts';
@@ -12,11 +12,7 @@ import {
   AlertTriangle,
   Volume2,
   Copy,
-  Check,
-  Zap,
-  HelpCircle,
-  RotateCcw,
-  SmilePlus
+  Check
 } from 'lucide-react';
 
 const LANGUAGES = [
@@ -31,8 +27,7 @@ export default function OfflineTranslator({
   setSourceLang,
   targetLang = 'ne',
   setTargetLang,
-  externalInputText = '',
-  onInputChange
+  externalInputText = ''
 }) {
   const [internalSourceLang, setInternalSourceLang] = useState('en');
   const [internalTargetLang, setInternalTargetLang] = useState('ne');
@@ -43,6 +38,8 @@ export default function OfflineTranslator({
   const [explanationData, setExplanationData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speechStatus, setSpeechStatus] = useState('idle'); // 'idle' | 'listening' | 'translating' | 'speaking'
   const [errorMessage, setErrorMessage] = useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [aiStatus, setAiStatus] = useState({
@@ -63,14 +60,15 @@ export default function OfflineTranslator({
     else setInternalTargetLang(val);
   };
 
-  // Sync external input text when user clicks "Use Phrase"
+  // Sync external input text when user clicks "Use in Translator" without auto-translating
   useEffect(() => {
     if (externalInputText) {
       setInputText(externalInputText);
-      handleTranslateText(externalInputText, activeSourceLang, activeTargetLang);
+      setErrorMessage('');
     }
   }, [externalInputText]);
 
+  // Subscribe to worker status updates
   useEffect(() => {
     const unsubscribe = translationService.onStatusChange((status) => {
       if (status && status.status) {
@@ -78,6 +76,14 @@ export default function OfflineTranslator({
       }
     });
     return () => unsubscribe();
+  }, []);
+
+  // Cleanup speech & TTS on unmount
+  useEffect(() => {
+    return () => {
+      speechRecognitionService.stopListening();
+      ttsService.stop();
+    };
   }, []);
 
   const handleSwapLanguages = () => {
@@ -90,57 +96,57 @@ export default function OfflineTranslator({
       const tempText = outputText;
       setOutputText(inputText);
       setInputText(tempText);
-      if (onInputChange) onInputChange(tempText);
     }
   };
 
   /**
-   * Translates text using:
-   * 1. Offline phrasebook dictionary (instant exact match)
+   * Core translation function supporting:
+   * 1. Offline phrasebook dictionary (Instant 100% offline match)
    * 2. TranslationService web worker
-   * 3. Local fallback / Backend /api/translate
+   * 3. Backend endpoint /api/translate
+   * 4. Graceful query fallback
    */
-  const handleTranslateText = async (textToTranslate, srcLang, tgtLang) => {
+  const performTranslation = async (textToTranslate, srcLang, tgtLang) => {
     const query = (textToTranslate || '').trim();
-    if (!query) {
-      setErrorMessage('Please enter text to translate.');
-      return;
-    }
+    if (!query) return '';
 
-    setErrorMessage('');
-    setIsLoading(true);
-    setActiveAction(null);
-    setExplanationData(null);
+    // Helper to get text in requested language
+    const getPhraseText = (p, lang) => {
+      if (!p) return '';
+      if (lang === 'en') return p.en || p.english || '';
+      if (lang === 'ne') return p.ne || p.nepali || '';
+      if (lang === 'hi') return p.hi || p.hindi || '';
+      if (lang === 'bn') return p.bn || p.bengali || '';
+      return p[lang] || '';
+    };
 
-    // 1. Check exact phrase dictionary first (Instant 100% offline match)
-    const cleanQuery = query.toLowerCase().replace(/[.,!?;:"]/g, '').trim();
+    const cleanStr = (s) =>
+      String(s || '')
+        .toLowerCase()
+        .replace(/[.,!?;:"'।॥]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // 1. Instant match in HOMESTAY_PHRASES (<1ms offline phrasebook)
+    const cleanQuery = cleanStr(query);
     const matchedPhrase = HOMESTAY_PHRASES.find((p) => {
-      const pSrc = (p[srcLang] || (srcLang === 'en' ? p.english : '')).toLowerCase().replace(/[.,!?;:"]/g, '').trim();
+      const pSrc = cleanStr(getPhraseText(p, srcLang));
       return pSrc === cleanQuery;
     });
 
     if (matchedPhrase) {
-      const translated = matchedPhrase[tgtLang] || matchedPhrase.nepali || matchedPhrase.english;
-      setOutputText(translated);
-      setOriginalTranslatedText(translated);
-      setIsLoading(false);
-      return;
+      return getPhraseText(matchedPhrase, tgtLang) || matchedPhrase.nepali || matchedPhrase.english;
     }
 
-    // 2. Try Local AI Translation Worker
+    // 2. Local AI Translation Worker
     try {
       const result = await translationService.translateText(query, srcLang, tgtLang);
-      if (result) {
-        setOutputText(result);
-        setOriginalTranslatedText(result);
-        setIsLoading(false);
-        return;
-      }
+      if (result) return result;
     } catch (workerErr) {
-      console.warn('Worker translation notice, using local offline fallback:', workerErr.message);
+      console.warn('Worker translation notice, trying backend/local fallback:', workerErr.message);
     }
 
-    // 3. Fallback via backend endpoint or local rule matching
+    // 3. Fallback via backend endpoint
     try {
       const res = await fetch('/api/translate', {
         method: 'POST',
@@ -149,62 +155,127 @@ export default function OfflineTranslator({
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.translatedText) {
-          setOutputText(data.translatedText);
-          setOriginalTranslatedText(data.translatedText);
-          setIsLoading(false);
-          return;
-        }
+        if (data.translatedText) return data.translatedText;
       }
     } catch (apiErr) {
       console.warn('API fallback notice:', apiErr.message);
     }
 
     // 4. Default graceful fallback
-    setOutputText(query);
-    setOriginalTranslatedText(query);
-    setIsLoading(false);
+    return query;
   };
 
-  const handleTranslateClick = () => {
-    handleTranslateText(inputText, activeSourceLang, activeTargetLang);
+  /**
+   * Translates text ONLY when user presses Translate button
+   */
+  const handleTranslateClick = async () => {
+    const query = inputText.trim();
+    if (!query || isLoading) return;
+
+    setErrorMessage('');
+    setIsLoading(true);
+    setActiveAction(null);
+    setExplanationData(null);
+
+    try {
+      const transStart = performance.now();
+      const translated = await performTranslation(query, activeSourceLang, activeTargetLang);
+      const transDuration = ((performance.now() - transStart) / 1000).toFixed(1);
+      // Performance log: timing only, no user text
+      console.log(`[Translator] Translation completed in ${transDuration}s`);
+
+      setOutputText(translated);
+      setOriginalTranslatedText(translated);
+    } catch (err) {
+      console.error('Translation error:', err);
+      setErrorMessage('Translation encountered an error. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  /**
+   * Speech-to-Text Flow:
+   * 1. Capture microphone voice
+   * 2. Convert voice -> text in input box
+   * 3. Does NOT automatically trigger translation
+   */
   const handleToggleSpeech = () => {
     if (!speechRecognitionService.isSupported()) {
       setErrorMessage('Speech recognition is not supported in this browser. Please type your message.');
       return;
     }
 
-    if (isListening) {
+    // If currently listening, stop listening
+    if (isListening || speechStatus === 'listening') {
       speechRecognitionService.stop();
       setIsListening(false);
+      setSpeechStatus('idle');
       return;
     }
 
     setErrorMessage('');
     setIsListening(true);
+    setSpeechStatus('listening');
 
     speechRecognitionService.start(
       activeSourceLang,
       (transcript) => {
-        const newText = inputText ? `${inputText} ${transcript}` : transcript;
-        setInputText(newText);
-        if (onInputChange) onInputChange(newText);
-      },
-      (error) => {
-        setErrorMessage(typeof error === 'string' ? error : 'Speech recognition failed or was cancelled.');
+        if (!transcript || !transcript.trim()) {
+          setIsListening(false);
+          setSpeechStatus('idle');
+          return;
+        }
+
+        const cleanTranscript = transcript.trim();
+        setInputText(cleanTranscript);
         setIsListening(false);
+        setSpeechStatus('idle');
+      },
+      (errorEvent) => {
+        const errType = errorEvent?.error || errorEvent?.message || errorEvent;
+        console.warn('[STT] Speech recognition event:', errType);
+        setIsListening(false);
+        setSpeechStatus('idle');
+
+        if (errType === 'not-allowed' || (typeof errType === 'string' && errType.includes('denied'))) {
+          setErrorMessage('Microphone access was denied. Please allow microphone access in your browser settings.');
+        } else if (errType === 'no-speech') {
+          setErrorMessage('No speech detected. Please speak clearly into your microphone.');
+        } else if (errType !== 'aborted') {
+          setErrorMessage('Voice recognition encountered an issue. Please try again or type.');
+        }
       },
       () => {
         setIsListening(false);
+        setSpeechStatus('idle');
       }
     );
   };
 
   const handleSpeakOutput = () => {
     if (!outputText) return;
-    ttsService.speak(outputText, activeTargetLang);
+    if (isSpeaking) {
+      ttsService.stop();
+      setIsSpeaking(false);
+      setSpeechStatus('idle');
+      return;
+    }
+
+    setIsSpeaking(true);
+    setSpeechStatus('speaking');
+    ttsService.speak(
+      outputText,
+      activeTargetLang,
+      () => {
+        setIsSpeaking(true);
+        setSpeechStatus('speaking');
+      },
+      () => {
+        setIsSpeaking(false);
+        setSpeechStatus('idle');
+      }
+    );
   };
 
   const handleCopy = async () => {
@@ -219,13 +290,17 @@ export default function OfflineTranslator({
   };
 
   const handleClear = () => {
+    if (isListening) speechRecognitionService.stop();
+    if (isSpeaking) ttsService.stop();
+    setIsListening(false);
+    setIsSpeaking(false);
+    setSpeechStatus('idle');
     setInputText('');
     setOutputText('');
     setOriginalTranslatedText('');
     setActiveAction(null);
     setExplanationData(null);
     setErrorMessage('');
-    if (onInputChange) onInputChange('');
   };
 
   // --- ACTIONS: Make Polite, Make Shorter, Explain ---
@@ -235,7 +310,6 @@ export default function OfflineTranslator({
     const baseText = originalTranslatedText || outputText;
 
     if (activeAction === 'polite') {
-      // Toggle back to original
       setOutputText(baseText);
       setActiveAction(null);
       return;
@@ -260,15 +334,14 @@ export default function OfflineTranslator({
     // Local offline polite transformation
     let polite = baseText;
     if (activeTargetLang === 'ne') {
-      polite = baseText.startsWith('हजुर') || baseText.startsWith('कृपया') ? baseText : `हजुर, कृपया ${baseText}`;
+      polite = `हजुर, कृपया ${baseText.replace(/^(कृपया|हजुर)/g, '').trim()}।`;
     } else if (activeTargetLang === 'hi') {
-      polite = baseText.startsWith('नमस्ते') || baseText.startsWith('कृपया') ? baseText : `नमस्ते! कृपया ${baseText}`;
+      polite = `कृपया, ${baseText.replace(/^कृपया/g, '').trim()}।`;
     } else if (activeTargetLang === 'bn') {
-      polite = baseText.startsWith('নমস্কার') || baseText.startsWith('অনুগ্রহ করে') ? baseText : `নমস্কার! অনুগ্রহ করে ${baseText}`;
+      polite = `অনুগ্রহ করে, ${baseText.replace(/^অনুগ্রহ করে/g, '').trim()}।`;
     } else {
-      polite = baseText.startsWith('Please') ? baseText : `Kindly note: ${baseText}`;
+      polite = `Please kindly, ${baseText}`;
     }
-
     setOutputText(polite);
     setActiveAction('polite');
   };
@@ -278,7 +351,6 @@ export default function OfflineTranslator({
     const baseText = originalTranslatedText || outputText;
 
     if (activeAction === 'shorter') {
-      // Toggle back to original
       setOutputText(baseText);
       setActiveAction(null);
       return;
@@ -301,11 +373,11 @@ export default function OfflineTranslator({
     }
 
     // Local offline shorter transformation
-    let shorter = baseText
-      .replace(/^(हजुर,\s*|कृपया\s*|नमस्ते!\s*|নমস্কার!\s*|অনুগ্রহ করে\s*|kindly\s*(let us know:)?\s*)/i, '')
-      .trim();
-    const parts = shorter.split(/[।?!.]+/).filter(Boolean);
-    setOutputText(parts.length > 0 ? parts[0].trim() : shorter);
+    let shorter = baseText.replace(/^(कृपया|हजुर|अनुग्रह করে|Please|Kindly)[,\s]*/gi, '').trim();
+    if (shorter.endsWith('?') || shorter.endsWith('।') || shorter.endsWith('.')) {
+      shorter = shorter.slice(0, -1).trim();
+    }
+    setOutputText(shorter);
     setActiveAction('shorter');
   };
 
@@ -345,6 +417,8 @@ export default function OfflineTranslator({
     });
     setActiveAction('explain');
   };
+
+  const hasInputText = Boolean(inputText && inputText.trim());
 
   return (
     <div className="bg-white dark:bg-[#0f1d17] rounded-2xl shadow-sm dark:shadow-xl border border-slate-200/80 dark:border-emerald-900/40 p-5 sm:p-6 transition-colors duration-200">
@@ -425,10 +499,7 @@ export default function OfflineTranslator({
         <div className="relative">
           <textarea
             value={inputText}
-            onChange={(e) => {
-              setInputText(e.target.value);
-              if (onInputChange) onInputChange(e.target.value);
-            }}
+            onChange={(e) => setInputText(e.target.value)}
             placeholder="Type what you want to say to your guest... (e.g. Can I have another blanket?)"
             rows={4}
             className="w-full p-4 pb-12 text-slate-900 dark:text-slate-100 text-sm font-medium bg-slate-50/60 dark:bg-[#0b1612] border border-slate-200 dark:border-emerald-900/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-forest-700 dark:focus:ring-emerald-500 resize-y placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed transition-colors shadow-inner"
@@ -439,17 +510,39 @@ export default function OfflineTranslator({
               type="button"
               onClick={handleToggleSpeech}
               className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
-                isListening
+                speechStatus === 'listening'
                   ? 'bg-rose-50 dark:bg-rose-950/90 text-rose-600 dark:text-rose-300 border-rose-300 dark:border-rose-500 animate-pulse shadow-md'
+                  : speechStatus === 'translating'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600'
+                  : speechStatus === 'speaking'
+                  ? 'bg-amber-50 dark:bg-amber-950/90 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-500 animate-pulse shadow-md'
                   : 'bg-white dark:bg-[#13231c] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-emerald-900/40 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
               }`}
             >
-              {isListening ? (
-                <Square className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+              {speechStatus === 'listening' ? (
+                <>
+                  <Square className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+                  <span>Listening...</span>
+                </>
+              ) : speechStatus === 'translating' ? (
+                <>
+                  <svg className="animate-spin h-3.5 w-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  <span>Translating...</span>
+                </>
+              ) : speechStatus === 'speaking' ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                  <span>Speaking...</span>
+                </>
               ) : (
-                <Mic className="w-3.5 h-3.5 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
+                <>
+                  <Mic className="w-3.5 h-3.5 text-forest-800 dark:text-emerald-400" aria-hidden="true" />
+                  <span>🎤 Speak</span>
+                </>
               )}
-              <span>{isListening ? 'Listening...' : '🎤 Speak'}</span>
             </button>
 
             {inputText && (
@@ -470,8 +563,14 @@ export default function OfflineTranslator({
         <button
           type="button"
           onClick={handleTranslateClick}
-          disabled={isLoading || !inputText.trim()}
-          className="w-full py-3.5 px-4 bg-emerald-700 hover:bg-emerald-800 dark:bg-gradient-to-r dark:from-emerald-600 dark:to-forest-700 dark:hover:from-emerald-500 dark:hover:to-forest-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-sm sm:text-base rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-[0.99] border border-transparent dark:border-emerald-500/30 cursor-pointer min-h-[48px]"
+          disabled={isLoading || !hasInputText}
+          className={`w-full py-3.5 px-4 font-extrabold text-sm sm:text-base rounded-xl transition-all flex items-center justify-center gap-2 border min-h-[48px] ${
+            !hasInputText
+              ? 'bg-slate-200 dark:bg-[#13231c] text-slate-400 dark:text-slate-500 border-slate-300/40 dark:border-emerald-950 cursor-not-allowed opacity-60 shadow-none'
+              : isLoading
+              ? 'bg-emerald-700/80 dark:bg-emerald-700/80 text-white border-transparent cursor-wait shadow-md'
+              : 'bg-emerald-700 hover:bg-emerald-800 dark:bg-gradient-to-r dark:from-emerald-600 dark:to-forest-700 dark:hover:from-emerald-500 dark:hover:to-forest-600 text-white shadow-md active:scale-[0.99] border-transparent dark:border-emerald-500/30 cursor-pointer'
+          }`}
         >
           {isLoading ? (
             <>
@@ -521,10 +620,14 @@ export default function OfflineTranslator({
             <button
               type="button"
               onClick={handleSpeakOutput}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition-colors cursor-pointer min-h-[36px]"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer min-h-[36px] ${
+                isSpeaking
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white animate-pulse'
+                  : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+              }`}
             >
               <Volume2 className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>🔊 Listen</span>
+              <span>{isSpeaking ? 'Speaking...' : '🔊 Listen'}</span>
             </button>
 
             <button
@@ -533,69 +636,70 @@ export default function OfflineTranslator({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-[#13231c] border border-slate-200 dark:border-emerald-900/50 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1a3528] shadow-xs transition-colors cursor-pointer min-h-[36px]"
             >
               {copySuccess ? (
-                <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                  <span>Copied ✓</span>
+                </>
               ) : (
-                <Copy className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                <>
+                  <Copy className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                  <span>Copy</span>
+                </>
               )}
-              <span>{copySuccess ? 'Copied' : 'Copy'}</span>
             </button>
 
             <button
               type="button"
               onClick={handleMakePolite}
-              title="Convert into a more polite hospitality version"
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer min-h-[36px] ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border shadow-xs transition-colors cursor-pointer min-h-[36px] ${
                 activeAction === 'polite'
-                  ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-600 font-bold'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/80 text-emerald-900 dark:text-emerald-100 border-emerald-400 dark:border-emerald-600'
                   : 'bg-white dark:bg-[#13231c] border-slate-200 dark:border-emerald-900/50 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
               }`}
             >
-              <SmilePlus className="w-3.5 h-3.5 text-amber-600" />
-              <span>{activeAction === 'polite' ? 'Polite ✓' : 'Make Polite'}</span>
+              <span>Make Polite</span>
             </button>
 
             <button
               type="button"
               onClick={handleMakeShorter}
-              title="Generate a shorter, concise version"
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer min-h-[36px] ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border shadow-xs transition-colors cursor-pointer min-h-[36px] ${
                 activeAction === 'shorter'
-                  ? 'bg-sky-100 dark:bg-sky-950/80 text-sky-900 dark:text-sky-200 border-sky-300 dark:border-sky-600 font-bold'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/80 text-emerald-900 dark:text-emerald-100 border-emerald-400 dark:border-emerald-600'
                   : 'bg-white dark:bg-[#13231c] border-slate-200 dark:border-emerald-900/50 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
               }`}
             >
-              <Zap className="w-3.5 h-3.5 text-sky-600" />
-              <span>{activeAction === 'shorter' ? 'Shorter ✓' : 'Make Shorter'}</span>
+              <span>Make Shorter</span>
             </button>
 
             <button
               type="button"
               onClick={handleExplain}
-              title="Show a small explanation of the translated sentence"
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer min-h-[36px] ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border shadow-xs transition-colors cursor-pointer min-h-[36px] ${
                 activeAction === 'explain'
-                  ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-600 font-bold'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/80 text-emerald-900 dark:text-emerald-100 border-emerald-400 dark:border-emerald-600'
                   : 'bg-white dark:bg-[#13231c] border-slate-200 dark:border-emerald-900/50 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#1a3528]'
               }`}
             >
-              <HelpCircle className="w-3.5 h-3.5 text-indigo-600" />
               <span>Explain</span>
             </button>
           </div>
 
-          {/* Explanation Panel */}
+          {/* Explain Meaning Panel */}
           {activeAction === 'explain' && explanationData && (
-            <div className="p-3.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/50 text-xs text-indigo-950 dark:text-indigo-200 space-y-1.5 animate-fadeIn">
-              <div className="font-bold flex items-center gap-1.5 text-indigo-900 dark:text-indigo-300">
-                <HelpCircle className="w-4 h-4 text-indigo-600" />
-                <span>Phrase Explanation ({explanationData.language})</span>
+            <div className="mt-3 p-3.5 rounded-xl bg-emerald-50/80 dark:bg-[#06150f] border border-emerald-200 dark:border-emerald-800/60 text-xs space-y-2 animate-fadeIn">
+              <div className="font-extrabold text-emerald-900 dark:text-emerald-300 flex items-center justify-between">
+                <span>Hospitality Meaning & Usage:</span>
+                <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
+                  {explanationData.language}
+                </span>
               </div>
-              <p className="leading-relaxed">
-                <strong>Tone:</strong> {explanationData.politeness}
+              <p className="text-slate-700 dark:text-slate-200 leading-relaxed">
+                {explanationData.context}
               </p>
-              <p className="leading-relaxed">
-                <strong>Context:</strong> {explanationData.context}
-              </p>
+              <div className="text-[11px] text-emerald-800 dark:text-emerald-400 font-medium">
+                Tone: {explanationData.politeness}
+              </div>
             </div>
           )}
         </div>

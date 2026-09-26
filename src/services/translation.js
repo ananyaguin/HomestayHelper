@@ -2,6 +2,7 @@
  * Translation Service
  * Communicates with Web Worker for local IndicTrans2 AI translation.
  * Keeps all model-loading and worker coordination outside of React UI components.
+ * Manages request lifecycle and cancels outdated pending requests.
  */
 
 class TranslationService {
@@ -14,12 +15,29 @@ class TranslationService {
       status: 'UNAVAILABLE',
       message: 'Local AI translation ready to load on demand.'
     };
+    this.refCount = 0;
+  }
 
-    this.initWorker();
+  acquire() {
+    this.refCount++;
+    if (!this.worker) {
+      this.initWorker();
+    }
+  }
+
+  release() {
+    this.refCount = Math.max(0, this.refCount - 1);
+    if (this.refCount === 0) {
+      this.cancelPendingRequests();
+      if (this.worker) {
+        this.worker.postMessage({ type: 'CANCEL' });
+      }
+    }
   }
 
   initWorker() {
     if (typeof window === 'undefined') return;
+    if (this.worker) return; // Keep single worker alive for reuse
 
     try {
       this.worker = new Worker(
@@ -41,13 +59,12 @@ class TranslationService {
         }
 
         if (id && this.pendingRequests.has(id)) {
+          const { resolve, reject } = this.pendingRequests.get(id);
+          this.pendingRequests.delete(id);
+
           if (msgType === 'result' || success === true) {
-            const { resolve } = this.pendingRequests.get(id);
-            this.pendingRequests.delete(id);
             resolve(translatedText);
           } else if (msgType === 'error' || success === false) {
-            const { reject } = this.pendingRequests.get(id);
-            this.pendingRequests.delete(id);
             reject(new Error(error || 'Translation request failed'));
           }
         }
@@ -98,8 +115,20 @@ class TranslationService {
     });
   }
 
+  cancelPendingRequests() {
+    for (const [id, { reject }] of this.pendingRequests.entries()) {
+      try {
+        reject(new Error('Outdated translation request cancelled.'));
+      } catch (e) {
+        // Ignore
+      }
+    }
+    this.pendingRequests.clear();
+  }
+
   /**
    * Main translation method
+   * Ensures only the latest request resolves and cancels outdated pending requests.
    * @param {string} text - Input text to translate
    * @param {string} sourceLanguage - 'en' | 'hi' | 'bn' | 'ne'
    * @param {string} targetLanguage - 'en' | 'hi' | 'bn' | 'ne'
@@ -120,8 +149,15 @@ class TranslationService {
     }
 
     if (!this.worker) {
+      this.initWorker();
+    }
+
+    if (!this.worker) {
       throw new Error('Local AI translation model is not available yet.');
     }
+
+    // Safely cancel previous pending requests so only latest runs
+    this.cancelPendingRequests();
 
     return new Promise((resolve, reject) => {
       const id = ++this.requestIdCounter;
@@ -142,6 +178,18 @@ class TranslationService {
     this.worker.postMessage({
       type: 'RELEASE'
     });
+  }
+
+  terminate() {
+    this.cancelPendingRequests();
+    if (this.worker) {
+      try {
+        this.worker.terminate();
+      } catch (e) {
+        // Ignore
+      }
+      this.worker = null;
+    }
   }
 }
 

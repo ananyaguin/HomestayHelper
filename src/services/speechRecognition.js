@@ -1,4 +1,4 @@
-// Web Speech API Speech-to-Text Service
+// Web Speech API Speech-to-Text Service (Optimized for low CPU & clean lifecycle)
 class SpeechRecognitionService {
   constructor() {
     this.recognition = null;
@@ -18,6 +18,7 @@ class SpeechRecognitionService {
       const rec = new SpeechRec();
       rec.continuous = false;
       rec.interimResults = false;
+      rec.maxAlternatives = 1;
       return rec;
     } catch (e) {
       console.warn('[STT] SpeechRecognition initialization failed:', e);
@@ -47,6 +48,7 @@ class SpeechRecognitionService {
       return false;
     }
 
+    // Stop any existing session before starting a new one
     this.stopListening();
 
     this.recognition = this._getRecognitionInstance();
@@ -66,6 +68,8 @@ class SpeechRecognitionService {
 
     this.recognition.onresult = (event) => {
       const transcript = event.results && event.results[0] && event.results[0][0] && event.results[0][0].transcript;
+      // Stop listening immediately once speech transcript is captured
+      this.stopListening();
       if (transcript && onResult) {
         onResult(transcript);
       }
@@ -73,6 +77,7 @@ class SpeechRecognitionService {
 
     this.recognition.onerror = (event) => {
       console.warn('[STT] Speech recognition error event:', event.error);
+      this.stopListening();
       if (onError) onError(event);
     };
 
@@ -87,7 +92,7 @@ class SpeechRecognitionService {
       return true;
     } catch (err) {
       console.warn('[STT] Could not start speech recognition:', err);
-      this.isListening = false;
+      this.stopListening();
       if (onError) onError(err);
       return false;
     }
@@ -95,6 +100,10 @@ class SpeechRecognitionService {
 
   stopListening() {
     if (this.recognition) {
+      // Detach listeners immediately to prevent zombie callbacks
+      this.recognition.onresult = null;
+      this.recognition.onerror = null;
+      this.recognition.onend = null;
       try {
         this.recognition.stop();
       } catch (e) {
