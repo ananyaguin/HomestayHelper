@@ -21,6 +21,9 @@ app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 app.use(morgan('dev'));
 
+const phrasesRouter = require('./routes/phrases');
+const translateRouter = require('./routes/translate');
+
 // Routes
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
@@ -31,6 +34,12 @@ app.use('/api/properties/:propertyId/rooms', roomsRouter);
 app.use('/api/properties/:propertyId/expenses', expensesRouter);
 app.use('/api/properties', propertiesRouter);
 app.use('/api/expenses', expensesRouter);
+app.use('/api/phrases', phrasesRouter);
+app.use('/api/translate', translateRouter);
+app.use('/api/phrase-action', (req, res, next) => {
+  req.url = '/phrase-action';
+  translateRouter(req, res, next);
+});
 
 // Health check route
 app.get('/health', (req, res) => {

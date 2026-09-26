@@ -1,50 +1,61 @@
-// Curated Offline Bilingual Phrasebook for Homestays
-export const PHRASE_CATEGORIES = [
+/**
+ * Central Hospitality Phrase Data for Homestay Helper
+ * Structured for offline use and backend API serving
+ */
+
+const PHRASE_CATEGORIES = [
   {
     id: "welcome",
     name: "Welcome",
     subtitle: "Guest greetings",
+    icon: "Sparkles",
     color: "emerald"
   },
   {
     id: "food-tea",
     name: "Food & Tea",
     subtitle: "Tea, meals & dining",
+    icon: "Utensils",
     color: "amber"
   },
   {
     id: "room",
     name: "Room",
     subtitle: "Stay comfort & supplies",
+    icon: "BedDouble",
     color: "sky"
   },
   {
     id: "directions",
     name: "Directions",
     subtitle: "Wayfinding & transport",
+    icon: "Compass",
     color: "teal"
   },
   {
     id: "payment",
     name: "Payment",
     subtitle: "Rates, UPI & billing",
+    icon: "Banknote",
     color: "emerald"
   },
   {
     id: "local-experience",
     name: "Local Experience",
     subtitle: "Sightseeing & culture",
+    icon: "Mountain",
     color: "indigo"
   },
   {
     id: "emergency",
     name: "Emergency",
     subtitle: "Medical & assistance",
+    icon: "AlertTriangle",
     color: "rose"
   }
 ];
 
-export const HOMESTAY_PHRASES = [
+const HOMESTAY_PHRASES = [
   // --- WELCOME ---
   {
     id: "welcome-01",
@@ -190,7 +201,7 @@ export const HOMESTAY_PHRASES = [
     nepali: "के तपाईंलाई कोठाको लागि केही चाहिन्छ?",
     en: "Do you need anything for your room?",
     hi: "क्या आपको अपने कमरे के लिए किसी चीज की जरूरत है?",
-    bn: "ঘরের জন্য কি আপনার कुछ লাগবে?",
+    bn: "ঘরের জন্য কি আপনার কিছু লাগবে?",
     ne: "के तपाईंलाई कोठाको लागि केही चाहिन्छ?"
   },
   {
@@ -311,7 +322,7 @@ export const HOMESTAY_PHRASES = [
     nepali: "भुक्तानी प्राप्त भयो, धन्यवाद।",
     en: "Payment has been received, thank you.",
     hi: "भुगतान प्राप्त हो गया है, धन्यवाद।",
-    bn: "পেমেন্ট পাওয়া গেছে, धन्यवाद।",
+    bn: "পেমেন্ট পাওয়া গেছে, ধন্যবাদ।",
     ne: "भुक्तानी प्राप्त भयो, धन्यवाद।"
   },
 
@@ -424,4 +435,7 @@ export const HOMESTAY_PHRASES = [
   }
 ];
 
-export default HOMESTAY_PHRASES;
+module.exports = {
+  PHRASE_CATEGORIES,
+  HOMESTAY_PHRASES
+};

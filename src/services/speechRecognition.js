@@ -25,6 +25,22 @@ class SpeechRecognitionService {
     }
   }
 
+  start(langOrOptions, onResult, onError, onEnd) {
+    if (typeof langOrOptions === 'object' && langOrOptions !== null) {
+      return this.startListening(langOrOptions);
+    }
+    return this.startListening({
+      lang: langOrOptions || 'en',
+      onResult,
+      onError,
+      onEnd
+    });
+  }
+
+  stop() {
+    this.stopListening();
+  }
+
   startListening({ lang = 'en', onResult, onError, onEnd }) {
     if (!this.isSupported()) {
       if (onError) onError(new Error('Speech recognition is not supported in this browser. Please type your message.'));
